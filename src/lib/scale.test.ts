@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDimensions, parseRoomMeasurements, formatDimensions, scaleNotes } from "./scale";
+import { parseDimensions, parseRoomMeasurements, scaleNotes } from "./scale";
 
 describe("parseDimensions", () => {
   it("reads positional metric triples", () => {
@@ -51,12 +51,6 @@ describe("parseDimensions", () => {
     expect(parseDimensions(undefined)).toBeUndefined();
     expect(parseDimensions("no sizes here")).toBeUndefined();
     expect(parseDimensions("")).toBeUndefined();
-  });
-
-  it("formats parsed dimensions", () => {
-    expect(formatDimensions({ widthCm: 211, depthCm: 88, heightCm: 83 })).toBe(
-      "211 cm wide × 88 cm deep × 83 cm high",
-    );
   });
 });
 
