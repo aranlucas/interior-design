@@ -8,8 +8,6 @@
 - A generation request was accepted at 04:23:17; the server was listening again
   at 04:24:58. The logs do **not** record the returned image size or allocation
   phase. A preceding generic Studio error does not establish its cause.
-- Main `14c48a7b112df8496f1b0dc0685dddc4b9eeb127` only changes Amazon image
-  extraction relative to that deployment. The generation path is unchanged.
 - `ai@7.0.157` lazily decodes a generated file's `uint8Array` using
   `atob` followed by `Uint8Array.from(string, mapper)`. This creates large
   transient JavaScript allocations and caches both base64 and decoded bytes.
@@ -18,12 +16,12 @@
 
 ## Recorded offline experiment
 
-The optional standalone RSS profiler has been retired. The measurements below
-remain investigation evidence, rather than a recurring capacity check. Current
-memory-path regressions run in the existing Vitest runner:
+These historical measurements are investigation evidence, not a recurring
+capacity check. The original profiler is no longer included. Run the maintained
+memory-path regressions with:
 
 ```sh
-pnpm exec vitest run src/lib/generation.test.ts src/lib/storage.server.test.ts src/lib/generation.transport.test.ts
+npx vitest run src/lib/generation.test.ts src/lib/storage.server.test.ts src/lib/generation.transport.test.ts
 ```
 
 Those tests reject the allocation-heavy SDK getter, verify exact generated and
@@ -48,17 +46,13 @@ that the incident returned this size of image or failed at this exact phase.
 The harness is not the complete application and does not include input photos,
 other requests, or a production-equivalent memory baseline.
 
-## Focused fix
+## Why native decoding and direct binding matter
 
-- Decode the SDK's base64 result with Node's native `Buffer.from(..., "base64")`,
-  avoiding the string iterator and SDK decoded-image cache.
-- Bind binary data directly to SQLite; preserve UTF-8 conversion for strings.
-- Remove a redundant copy in the separate brush-edit result path.
-- Regression tests reject access to the expensive getter, verify exact saved
-  single/batch/edit bytes, and cover SQLite subarray and snapshot semantics.
-
-No model, image quality, output size, batch count, retry, timeout, or provider
-request behavior changes.
+Generation decodes base64 with Node’s native `Buffer.from(..., "base64")` to avoid
+the SDK’s string iterator and decoded-image cache. SQLite binds binary data
+directly, preserving UTF-8 conversion for strings. The tests above protect exact
+single/batch/edit bytes, subarray ranges and snapshot semantics. These changes
+do not bound the full response or concurrent-request memory.
 
 ## Remaining capacity risks
 
@@ -68,9 +62,8 @@ buffers the full JSON response and its base64 strings. Per-user leases also
 allow different users to generate concurrently, and input images are loaded
 before admission. Media responses make additional full-image copies.
 
-Recommended separate decision: adopt a bounded batch/concurrency policy after
+Before claiming capacity safety, choose a bounded batch/concurrency policy after
 testing realistic input-photo and concurrent-request loads. Serial one-image
 provider calls can reduce response memory, but may change latency, input-token
-charges, partial-result handling, and retry behavior; this patch deliberately
-does not introduce that product/billing change silently. Until that policy is
-settled, do not describe large multi-image batches as proven safe at 500 MB.
+charges, partial-result handling, and retry behavior; that requires an explicit
+product/billing decision. Until that policy is settled, do not describe large multi-image batches as proven safe at 500 MB.
