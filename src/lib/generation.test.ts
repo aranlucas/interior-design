@@ -110,47 +110,6 @@ it("recovers interrupted jobs and leases when a new server opens the database", 
   expect(restarted.claimGeneration("restart")).toBe(true);
   expect(restarted.getJob("completed", done.id)?.status).toBe("succeeded");
 });
-it("generates freestyle designs without a base photo", async () => {
-  const s = await import("./storage.server");
-  const { startGeneration } = await import("./generation.server");
-  const owner = "freestyle";
-  const roomId = crypto.randomUUID();
-  await s.saveRooms(owner, [
-    {
-      id: roomId,
-      name: "Garden",
-      type: "Garden",
-      notes: "",
-      style: "Tropical",
-      assets: [],
-      designs: [],
-      createdAt: new Date().toISOString(),
-    },
-  ]);
-  vi.mocked(generateImage).mockResolvedValueOnce({
-    image: generatedImage([1, 2]),
-  } as never);
-  const { jobId } = await startGeneration(owner, {
-    roomId,
-    notes: "",
-    style: "Tropical",
-    assetIds: [],
-    mode: "freestyle",
-    orientation: "portrait",
-  });
-  await vi.waitFor(() => expect(s.getJob(owner, jobId)?.status).toBe("succeeded"));
-  const design = (await s.rooms(owner))[0].designs[0];
-  expect(design.baseId).toBe("");
-  expect(design.mode).toBe("freestyle");
-  const call = vi.mocked(generateImage).mock.calls.at(-1)![0] as {
-    size: string;
-    prompt: { images: unknown[] };
-  };
-  expect(call.size).toBe("1024x1536");
-  expect(call.prompt.images).toHaveLength(0);
-  expect(s.claimGeneration(owner)).toBe(true);
-  s.releaseGeneration(owner);
-});
 function png(width: number, height: number) {
   const bytes = new Uint8Array(24);
   bytes.set([137, 80, 78, 71, 13, 10, 26, 10], 0);

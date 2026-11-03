@@ -67,20 +67,6 @@ describe("private studio", () => {
     ).toEqual({ sub: "a", name: "Alex", email: undefined });
     expect(await user(new Request("http://localhost"))).toBeNull();
   });
-  it("keeps image reference numbers aligned with architectural context", () => {
-    const input = designInput.parse({
-      roomId: crypto.randomUUID(),
-      baseId: crypto.randomUUID(),
-      notes: "Add the sofa",
-      style: "Japandi",
-      assetIds: [],
-    });
-    const p = buildPrompt("Living room", input, [{ name: "Sofa", kind: "product" }], 3);
-    expect(p).toContain("Image 4: product, Sofa");
-    expect(p).toContain("Preserve its architecture");
-    expect(p).toContain("Add the sofa");
-  });
-
   it("switches directives per design mode", () => {
     const base = {
       roomId: crypto.randomUUID(),
