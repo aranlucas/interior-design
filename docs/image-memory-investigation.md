@@ -16,21 +16,23 @@
   Roomform used this getter for every generated image, then copied it again
   with `Buffer.from(data)` before binding to SQLite.
 
-## Offline reproduction
+## Recorded offline experiment
 
-Run with the lockfile's dependencies and Node 24:
+The optional standalone RSS profiler has been retired. The measurements below
+remain investigation evidence, rather than a recurring capacity check. Current
+memory-path regressions run in the existing Vitest runner:
 
 ```sh
-node scripts/profile-image-memory.mjs sdk 1
-node scripts/profile-image-memory.mjs native 1
-node scripts/profile-image-memory.mjs native 8
+pnpm exec vitest run src/lib/generation.test.ts src/lib/storage.server.test.ts src/lib/generation.transport.test.ts
 ```
 
-The script constructs a valid, deterministic 3840×2160 PNG (11,078,340 bytes).
-A fresh worker processes a locally streamed mock OpenAI JSON response through
-the installed SDK and writes the image bytes to temporary SQLite. All fetches
-are mocked; no credentials, provider charges, production data, or network calls
-are involved. Fixture construction is excluded from the worker's peak RSS.
+Those tests reject the allocation-heavy SDK getter, verify exact generated and
+edited bytes, and preserve SQLite binary/subarray semantics. They use synthetic
+responses and local storage. They do not claim a production memory ceiling.
+
+The recorded experiment used a deterministic 3840×2160 PNG (11,078,340 bytes).
+A fresh process read a locally streamed mock OpenAI response through the SDK
+and wrote temporary SQLite bytes; fixture generation was outside measured RSS.
 
 Observed on Node 24.22.1, Linux; decimal MB, not MiB:
 
