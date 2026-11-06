@@ -13,7 +13,8 @@ import {
   ownerPrefix,
   remove,
 } from "./storage.server";
-import { designInput, buildPrompt, buildEditPrompt, isOutdoor } from "./validation";
+import { designInput } from "./validation";
+import { buildPrompt, buildEditPrompt, isOutdoor } from "./generation-prompts";
 import { outputSize, orientationSize, pngDimensions } from "./image-size";
 import { analyzeLayout } from "./layout.server";
 import { assertCurrentGuide, prepareRoomGuide } from "./room-guide.server";

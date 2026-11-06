@@ -34,7 +34,6 @@ export function CompareVideo({
       phase < 0.4 ? smooth(phase / 0.4) : phase < 0.6 ? 1 : smooth(Math.max(0, (1 - phase) / 0.4));
     ctx.drawImage(images.before, 0, 0, canvas.width, canvas.height);
     if (alpha > 0) {
-      // Letterbox the design so differing aspect ratios never stretch it.
       const scale = Math.min(
         canvas.width / images.after.naturalWidth,
         canvas.height / images.after.naturalHeight,
@@ -78,7 +77,6 @@ export function CompareVideo({
       cancelled = true;
       cancelAnimationFrame(rafRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beforeKey, design.key]);
   useEffect(() => {
     if (!ready || busy) return;
@@ -89,7 +87,6 @@ export function CompareVideo({
     };
     rafRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, busy]);
   async function exportVideo() {
     const canvas = canvasRef.current;

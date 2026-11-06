@@ -1,9 +1,10 @@
+import { buildPrompt } from "./generation-prompts";
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { exampleAiRoomLayout } from "./ai-room-layout.fixture";
-import { buildPrompt, designInput } from "./validation";
+import { designInput } from "./validation";
 import type { Room, Asset } from "./types";
 
 const directory = mkdtempSync(join(tmpdir(), "roomform-guide-"));

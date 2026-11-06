@@ -22,7 +22,6 @@ const planSchema = z.object({
   cautions: z.string().max(500).optional().catch(undefined),
 });
 
-/** Extracts the plan JSON from a model reply, tolerating prose or markdown fences. */
 export function parsePlan(text: string): LayoutPlan | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");

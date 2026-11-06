@@ -1,15 +1,9 @@
+import { buildPrompt, buildEditPrompt, isOutdoor } from "./generation-prompts";
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  buildEditPrompt,
-  buildPrompt,
-  designInput,
-  isOutdoor,
-  roomName,
-  roomUpdate,
-} from "./validation";
+import { designInput, roomName, roomUpdate } from "./validation";
 import { seal, unseal, user, authorizationRedirect } from "./auth.server";
 const dir = mkdtempSync(join(tmpdir(), "roomform-"));
 beforeAll(() => {

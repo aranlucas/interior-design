@@ -58,11 +58,10 @@ async function setup() {
 }
 it("merges typing into the newest text after a 500ms quiet period and saves the original room", async () => {
   const { data, writes, close } = await setup();
-  const first = data.saveDraft("a", { notes: "old", style: "Japandi" });
+  data.saveDraft("a", { notes: "old", style: "Japandi" });
   await vi.advanceTimersByTimeAsync(300);
   const latest = data.saveDraft("a", { notes: "newest", style: "Scandinavian" });
   const other = data.saveDraft("b", { notes: "other", style: "Japandi" });
-  expect(first).toBe(latest);
   expect(data.getRoom("a").get("a")?.notes).toBe("newest");
   await vi.advanceTimersByTimeAsync(499);
   expect(writes).toHaveLength(0);

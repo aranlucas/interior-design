@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { LoaderCircle } from "lucide-react";
 import { Dialog } from "./studio-controls";
+import { exportEditMask } from "../lib/edit-mask";
 import { assetUrl } from "../lib/types";
 import type { StudioState } from "../hooks/use-studio";
 import type { Design } from "../lib/types";
@@ -60,7 +61,6 @@ export function DesignEditor({
       imageRef.current?.close();
       imageRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [design.key]);
   function toCanvas(e: ReactPointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current!;
@@ -153,12 +153,9 @@ export function DesignEditor({
     }
     setBusy(true);
     try {
-      const maskBlob = await new Promise<Blob>((resolve, reject) =>
-        mask.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error("Could not prepare the mask."))),
-          "image/png",
-        ),
-      );
+      const bitmap = imageRef.current;
+      if (!bitmap) throw new Error("Could not load the design image.");
+      const maskBlob = await exportEditMask(mask, bitmap);
       const ok = await state.submitEdit(design, instruction.trim(), maskBlob);
       if (ok) onClose();
     } catch (e) {

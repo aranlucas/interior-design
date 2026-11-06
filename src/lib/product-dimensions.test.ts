@@ -1,6 +1,7 @@
+import { buildPrompt } from "./generation-prompts";
 import { describe, it, expect } from "vitest";
 import { extractProductDimensions, shopifySize } from "./product-dimensions";
-import { buildPrompt, designInput } from "./validation";
+import { designInput } from "./validation";
 describe("physical product sizes", () => {
   it("keeps pixel sizes separate from physical product dimensions", () => {
     expect(

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { cameraInput } from "../lib/camera-input";
+import { useEffect, useRef, useState } from "react";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -179,47 +180,8 @@ export function ReconstructedRoomScene({
       renderer.domElement.remove();
     };
   }, [data]);
-  function zoom(factor: number) {
-    const current = view.current;
-    if (!current) return;
-    const offset = current.camera.position.clone().sub(current.controls.target);
-    offset.setLength(
-      THREE.MathUtils.clamp(
-        offset.length() * factor,
-        current.controls.minDistance,
-        current.controls.maxDistance,
-      ),
-    );
-    current.camera.position.copy(current.controls.target).add(offset);
-    current.controls.update();
-    current.render();
-  }
-  function keyboard(event: KeyboardEvent<HTMLDivElement>) {
-    const current = view.current;
-    if (!current || event.target !== event.currentTarget) return;
-    if (event.key.startsWith("Arrow")) {
-      event.preventDefault();
-      const offset = new THREE.Spherical().setFromVector3(
-        current.camera.position.clone().sub(current.controls.target),
-      );
-      if (event.key === "ArrowLeft") offset.theta -= 0.12;
-      if (event.key === "ArrowRight") offset.theta += 0.12;
-      if (event.key === "ArrowUp") offset.phi -= 0.12;
-      if (event.key === "ArrowDown") offset.phi += 0.12;
-      offset.makeSafe();
-      current.camera.position
-        .copy(current.controls.target)
-        .add(new THREE.Vector3().setFromSpherical(offset));
-      current.controls.update();
-      current.render();
-    } else if (event.key === "+" || event.key === "=") {
-      event.preventDefault();
-      zoom(0.85);
-    } else if (event.key === "-") {
-      event.preventDefault();
-      zoom(1.15);
-    }
-  }
+  const { zoom, keyboard } = cameraInput(() => view.current);
+
   return (
     <>
       <div className="room-viewport reconstructed-viewport">

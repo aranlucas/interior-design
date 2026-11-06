@@ -1,5 +1,39 @@
-import { mutateRooms, ownerPrefix, remove } from "./storage.server";
+import { mutateRooms, ownerPrefix, remove, writeObject } from "./storage.server";
 import { roomUpdate } from "./validation";
+import { roomModel } from "./room-model";
+import type { Asset } from "./types";
+
+export async function attachAsset(
+  owner: string,
+  roomId: string,
+  metadata: Omit<Asset, "id" | "key">,
+  bytes: Uint8Array,
+  contentType: string,
+) {
+  const id = crypto.randomUUID();
+  const key = `${ownerPrefix(owner)}${roomId}/${id}.${contentType.split("/")[1]}`;
+  return mutateRooms(owner, (all) => {
+    const room = all.find((r) => r.id === roomId);
+    if (!room) throw new Response("Room not found", { status: 404 });
+    if (room.assets.length >= 16) throw new Error("A room can hold up to 16 reference photos.");
+    writeObject(key, bytes, contentType);
+    room.assets.push({ ...metadata, id, key });
+    return room;
+  });
+}
+
+export async function deleteAsset(owner: string, roomId: string, assetId: string) {
+  return mutateRooms(owner, (all) => {
+    const room = all.find((r) => r.id === roomId);
+    if (!room) throw new Response("Room not found", { status: 404 });
+    const asset = room.assets.find((a) => a.id === assetId);
+    if (asset?.key.startsWith(`${ownerPrefix(owner)}${roomId}/`)) remove(asset.key);
+    room.assets = room.assets.filter((a) => a.id !== assetId);
+    if (room.model) room.model = roomModel(room.model, room.assets);
+    return room;
+  });
+}
+
 export async function updateRoom(owner: string, value: unknown) {
   const input = roomUpdate.parse(value);
   return mutateRooms(owner, (all) => {
@@ -33,7 +67,6 @@ export async function deleteDesign(owner: string, roomId: string, designId: stri
     const room = all.find((r) => r.id === roomId);
     const design = room?.designs.find((d) => d.id === designId);
     if (!room || !design) throw new Response("Design not found", { status: 404 });
-    // Same SQLite transaction removes both the blob and its room record.
     if (design.key.startsWith(ownerPrefix(owner))) remove(design.key);
     for (const key of [design.guide?.key, design.guide?.layoutKey]) {
       if (key?.startsWith(`${ownerPrefix(owner)}${roomId}/`)) remove(key);
