@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -23,3 +25,36 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: npm run fmt:check
+      - name: Reproduce audited baseline defects
+        run: bash scripts/reproduce-audit-baseline.sh
+      - name: Build production bundle without external secrets
+        run: npm run build
+        env:
+          ROOMFORM_LOCAL: "true"
+      - name: Upload baseline reproduction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-baseline
+          path: .audit-evidence/
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      E2E_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm exec -- e2e-web install chromium --with-deps
+      - run: npm run test:e2e
+      - name: Upload browser evidence and server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidence
+          path: .e2e/
+          include-hidden-files: true

@@ -12,7 +12,8 @@
     "dev:local": "ROOMFORM_LOCAL=true vite --host 127.0.0.1 --port 3000",
     "lint": "oxlint",
     "fmt": "oxfmt",
-    "fmt:check": "oxfmt --check"
+    "fmt:check": "oxfmt --check",
+    "test:e2e": "e2e run --reporter list,junit"
   },
   "dependencies": {
     "@ai-sdk/openai": "4.0.109",
@@ -39,11 +40,13 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@e2e-dev/web": "0.15.5",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "latest",
+    "e2e": "0.23.0",
     "oxfmt": "0.75.0",
     "oxlint": "1.90.0",
     "typescript": "latest",
@@ -51,6 +54,6 @@
     "vitest": "latest"
   },
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24.8.0"
   }
 }

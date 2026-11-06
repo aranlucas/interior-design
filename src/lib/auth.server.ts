@@ -65,12 +65,17 @@ let discovery: Promise<oidc.Configuration> | undefined;
 function config() {
   if (!ENV.AUTH_CLIENT_ID)
     throw new Error("Register this app with your Auth service and set AUTH_CLIENT_ID.");
-  return (discovery ??= oidc.discovery(
-    new URL(`${issuer()}/.well-known/openid-configuration`),
-    ENV.AUTH_CLIENT_ID,
-    ENV.AUTH_CLIENT_SECRET || undefined,
-    ENV.AUTH_CLIENT_SECRET ? oidc.ClientSecretBasic(ENV.AUTH_CLIENT_SECRET) : oidc.None(),
-  ));
+  return (discovery ??= oidc
+    .discovery(
+      new URL(`${issuer()}/.well-known/openid-configuration`),
+      ENV.AUTH_CLIENT_ID,
+      ENV.AUTH_CLIENT_SECRET || undefined,
+      ENV.AUTH_CLIENT_SECRET ? oidc.ClientSecretBasic(ENV.AUTH_CLIENT_SECRET) : oidc.None(),
+    )
+    .catch((error) => {
+      discovery = undefined;
+      throw error;
+    }));
 }
 export async function login() {
   const c = await config();
