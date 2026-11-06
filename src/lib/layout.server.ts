@@ -89,7 +89,7 @@ export async function analyzeLayout(args: {
               type: "text",
               text: `This photo shows a ${args.roomType}. First estimate the room's geometry (wall widths, ceiling height) from visible cues such as doors, windows, radiators or furniture, briefly noting your basis. ${task} Style direction: ${args.style}. Client brief: ${args.brief || "none"}. ${inventory}\nReply with JSON exactly shaped as: {"roomEstimate": string, "placements": [{"name": string, "position": string, "widthRatio": number, "notes": string}], "cautions": string}.`,
             },
-            { type: "image", image: args.baseImage, mediaType: args.mediaType },
+            { type: "file", data: args.baseImage, mediaType: args.mediaType || "image" },
           ],
         },
       ],
