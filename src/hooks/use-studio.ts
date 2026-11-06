@@ -75,7 +75,6 @@ export function useStudio(roomId: string) {
   const currentRoom = useRef(roomId);
   currentRoom.current = roomId;
   useEffect(() => {
-    // Synchronize a committed query result with local DB/UI state. No API calls here.
     if (!jobQuery.data) return;
     const result = jobQuery.data;
     void applyWatchedJob(watching, result, {
@@ -419,21 +418,14 @@ export function useStudio(roomId: string) {
     setModal,
     sizeAsset,
     setSizeAsset,
-    setError,
     busy,
-    setBusy,
-    starting,
-    setStarting,
     job,
     generating,
-    baseId,
     setBaseId,
     selected,
     setSelected,
     draftFields,
-    designId,
     setDesignId,
-    view,
     setView,
     split,
     setSplit,

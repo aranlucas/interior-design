@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { cameraInput } from "../lib/camera-input";
+import { useEffect, useRef, useState } from "react";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -170,7 +171,6 @@ export function RoomScene({
     group.add(floor);
     geometries.push(floorGeometry);
     materials.push(floorMaterial);
-    // A clipped floor grid marks half-meter intervals in actual model units.
     const points: THREE.Vector3[] = [];
     for (let x = -width / 2; x <= width / 2; x += 0.5)
       points.push(new THREE.Vector3(x, 0.005, -depth / 2), new THREE.Vector3(x, 0.005, depth / 2));
@@ -196,52 +196,7 @@ export function RoomScene({
     setup.current?.fit();
   }, [dimensionsKey]);
 
-  function zoom(factor: number) {
-    const view = setup.current;
-    if (!view) return;
-    const offset = view.camera.position.clone().sub(view.controls.target);
-    offset.setLength(
-      THREE.MathUtils.clamp(
-        offset.length() * factor,
-        view.controls.minDistance,
-        view.controls.maxDistance,
-      ),
-    );
-    view.camera.position.copy(view.controls.target).add(offset);
-    view.controls.update();
-    view.render();
-  }
-  function keyboard(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget) return;
-    const view = setup.current;
-    if (!view) return;
-    if (event.key.startsWith("Arrow")) {
-      event.preventDefault();
-      const offset = new THREE.Spherical().setFromVector3(
-        view.camera.position.clone().sub(view.controls.target),
-      );
-      if (event.key === "ArrowLeft") offset.theta -= 0.12;
-      if (event.key === "ArrowRight") offset.theta += 0.12;
-      if (event.key === "ArrowUp") offset.phi -= 0.12;
-      if (event.key === "ArrowDown") offset.phi += 0.12;
-      offset.phi = THREE.MathUtils.clamp(
-        offset.phi,
-        view.controls.minPolarAngle,
-        view.controls.maxPolarAngle,
-      );
-      view.camera.position
-        .copy(view.controls.target)
-        .add(new THREE.Vector3().setFromSpherical(offset));
-      view.controls.update();
-      view.render();
-    } else if (event.key === "+" || event.key === "=") {
-      event.preventDefault();
-      zoom(0.85);
-    } else if (event.key === "-") {
-      event.preventDefault();
-      zoom(1.15);
-    }
-  }
+  const { zoom, keyboard } = cameraInput(() => setup.current);
 
   return (
     <div className="room-viewport">

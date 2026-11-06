@@ -28,6 +28,9 @@ function db() {
   return database;
 }
 export async function save(key: string, data: Uint8Array | string, contentType: string) {
+  writeObject(key, data, contentType);
+}
+export function writeObject(key: string, data: Uint8Array | string, contentType: string) {
   db()
     .prepare(
       "INSERT INTO objects (key,data,content_type) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET data=excluded.data,content_type=excluded.content_type",

@@ -62,7 +62,6 @@ export function importPhotoMatches(databasePath: string, matches: PhotoMatches) 
       }
     }
     pairs.push(...matches.points.map((_, i): [number, number] => [indices[0][i], indices[1][i]]));
-    // Remove verified geometry so COLMAP will re-estimate it using the supplied matches.
     db.prepare("DELETE FROM two_view_geometries WHERE pair_id=?").run(pairId);
     db.prepare("DELETE FROM matches WHERE pair_id=?").run(pairId);
     const aName = String(db.prepare("SELECT name FROM images WHERE image_id=?").get(ids[0])!.name);
