@@ -29,7 +29,13 @@ const expected = [
 ];
 for (const name of expected) {
   const test = assertions.find(test => test.title === name);
-  if (test?.status !== 'failed' || !test.failureMessages.some(message => /AssertionError/.test(message)))
+  const failure = test?.failureMessages.join('\n') ?? '';
+  const reason = name.startsWith('retries failed')
+    ? /promise rejected.*resolv|Temporary issuer outage/s
+    : name.startsWith('rejects overlapping')
+      ? /expected true to be false/
+      : /promise resolved.*reject/s;
+  if (test?.status !== 'failed' || !reason.test(failure))
     throw new Error(`Baseline did not reproduce the intended assertion failure: ${name}`);
 }
 console.log('All three behavior regressions fail on the audited baseline.');
