@@ -115,7 +115,7 @@ export async function startGeneration(owner: string, raw: z.input<typeof designI
       prompt += guide
         ? " The final image is the previous design. Preserve its furniture identities, quantities, materials, physical proportions, and relative placement unless the client brief explicitly requests a change. Carry those choices into the chosen camera rather than copying the previous image's screen coordinates. Image 1 remains the chosen camera/layout guide and the original room photos remain appearance evidence. In empty mode, remove movable furnishings regardless of the previous design."
         : base
-          ? " The final image is the previous design. Refine that design using the client brief, while keeping image 1 as the architectural authority."
+          ? " The final image is the previous design. Make only the changes requested in the client brief, preserving its furniture identities, quantities, materials, and placement unless a change is requested or required by the selected task. Keep image 1 as the architectural and camera authority; preserve its crop, viewpoint, and perspective."
           : "";
     }
     if (input.fillGaps) {
@@ -242,11 +242,12 @@ export async function startEditGeneration(
   }
   void settleGeneration(u.sub, job.id, async () => {
     const form = new FormData();
-    form.set("model", ENV.OPENAI_IMAGE_MODEL || "gpt-image-2.5-sunburst");
+    form.set("model", ENV.OPENAI_IMAGE_MODEL || defaultImageModel);
     form.set("prompt", buildEditPrompt(input.prompt));
     form.set("image", new Blob([new Uint8Array(sourceBytes)], { type }), "design.png");
     form.set("mask", new Blob([input.mask], { type: "image/png" }), "mask.png");
     form.set("n", "1");
+    form.set("output_format", "png");
     const response = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
       headers: { Authorization: `Bearer ${ENV.OPENAI_API_KEY}` },

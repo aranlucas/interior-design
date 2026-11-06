@@ -55,7 +55,13 @@ export const editInput = z.object({
   prompt: z.string().trim().min(1).max(1000),
 });
 export function buildEditPrompt(instruction: string) {
-  return `Edit the masked (transparent) region of this interior design: ${instruction}. Keep everything outside the mask exactly as it is — furniture, materials, colors, lighting, and camera. Match the surrounding perspective, grain, and lighting so the edit blends seamlessly and photorealistically. Return only the edited image, without text, labels, borders, or collage.`;
+  return [
+    "Task: Edit only the masked (transparent) region of the supplied design image.",
+    `Requested change: ${instruction}`,
+    "Preserve: Keep everything outside the mask exactly as it is — architecture, furniture, materials, colors, lighting, and camera. Retain the original crop, framing, perspective, and object positions. Do not globally restyle, relight, sharpen, or recolor the image.",
+    "Integration: Match the surrounding perspective, grain, textures, and lighting so the edit blends seamlessly and photorealistically. Keep unrelated details inside the mask unchanged where the requested change allows.",
+    "Output: Return only the edited image, without added text, labels, borders, or collage.",
+  ].join("\n\n");
 }
 
 const outdoorRoomTypes = new Set(["Outdoor", "Garden", "Patio", "House exterior", "Balcony"]);
@@ -127,16 +133,19 @@ export function buildPrompt(
     input.people !== "none"
       ? `Naturally include ${PEOPLE_PHRASES[input.people]} in the scene at plausible scale, relaxed and candid.`
       : "",
-    input.lighting !== "natural" ? `Lighting direction: ${input.lighting}.` : "",
+    input.lighting !== "natural"
+      ? `Lighting direction: ${input.lighting}. This explicit lighting choice overrides source-light preservation only; retain the camera, architecture, object positions, and material identities.`
+      : "",
   ]
     .filter(Boolean)
     .join(" ");
   const parts = [
-    `You are an expert ${outdoor ? "landscape" : "interior"} designer producing a photorealistic visualization of ${roomName}.`,
+    `Task: You are an expert ${outdoor ? "landscape" : "interior"} designer producing a photorealistic visualization of ${roomName}.`,
+    "Preserve and change:",
     guide
       ? `Image 1 is the client's chosen 3D camera/layout guide, a clean render of an AI-estimated room. Keep this exact viewpoint, framing, left/right orientation, footprint, openings, and fixed elements. Preserve the cutaway or overhead composition if shown; do not switch to a source photo's camera. Treat this as rendering over image 1, not composing a new room photograph: keep the camera elevation, azimuth, roll, field of view, perspective convergence, room silhouette, and amount of surrounding background. Do not zoom into the room, lower the camera to eye level, rotate to show the furniture front-on, or restore cutaway walls that hide the interior. Photorealism applies to materials and lighting, not a change in projection or composition. Apply the requested design task: ${input.mode === "empty" ? "remove movable furnishings, retain permanent fixtures" : input.mode === "stage" ? "furnish the empty room" : input.mode === "paint" ? "repaint and refinish only: keep all furniture, layout, and camera, change only colors and finishes" : "create a furnished photorealistic interior"}. The render's simplified colors, amber uncertainty tint, and transparency are diagram conventions, not finishes to reproduce.`
       : directive,
-    scene,
+    scene ? `Scene direction:\n${scene}` : "",
     guide
       ? `Images 2 through ${roomCount} are original room photos in the saved layout's source-photo order (photoNumber 1 is image 2). Use them as appearance and evidence for materials, windows, doors, fixtures, and daylight, not as the output camera. Use each element's photoNumbers to find its supporting source images; the same object seen in multiple photos is one object, not several. The capture controls projection and placement; source photos supply appearance details for the corresponding elements. Do not move an element to its screen position in a different source camera. Where evidence conflicts with estimated geometry, retain photo-supported identity and appearance without changing the chosen camera, mirroring the room, or inventing observed space.`
       : roomCount > 1
@@ -146,7 +155,7 @@ export function buildPrompt(
       ? `Client-supplied room measurements: ${input.measurements}. These are the physical scale authority for the scene.`
       : "",
     plan
-      ? `A prior vision analysis of image 1 produced this placement plan — follow its geometry and placements: ${plan}`
+      ? `Estimated placement guidance from a prior vision analysis of image 1: ${plan}\nTreat this plan as fallible guidance. Visible source architecture and client-confirmed measurements take precedence over estimates; explicit client placement requests take precedence over suggested placements. Do not alter architecture to satisfy the plan.`
       : "",
     guide
       ? `Saved architectural constraints (AI estimates, NOT measurements): ${JSON.stringify(guide.layout)}. All proportions, positions, and sizes in this layout are estimated, including elements marked visible; visible means photo-supported presence only. Inferred elements and assumptions remain uncertain. Client-supplied measurements override estimated scale. The stored layout uses plan coordinates (+x right facing +z); the render reflects x once into y-up Three.js coordinates and negates fixture yaw. Do not mirror the rendered view. Captured camera in scene coordinates and visibility settings: ${JSON.stringify(guide.capture)}. Hidden inferred structure or fixtures are omitted only from the render, not evidence of absence. Do not fill hidden regions as if observed. This is a separate visualization; it does not update the reconstruction or guarantee exact adherence.`
@@ -159,7 +168,7 @@ export function buildPrompt(
       ? "Furniture placement rules: follow explicit locations, orientations, and quantities in the client brief. For furniture retained in the design, preserve its supported location, orientation, and relationships to walls, windows, and neighboring objects; do not rearrange it merely for a more attractive composition. A replacement occupies the replaced item's location and orientation unless the brief asks to move it. Add new pieces only in available floor space, keeping doors, passages, and drawers usable. Never shrink, stretch, crop away, or push furniture through walls to force a fit. If the requested size cannot plausibly fit, preserve product proportions and clearances rather than pretending it fits. With no specified placement, choose a conservative arrangement consistent with the captured layout when present."
       : "Furniture and product references do not authorize adding movable objects in empty mode. Remove movable furniture even when it appears as a box in the captured layout; retain built-ins and permanent fixtures.",
     `Client-confirmed physical sizes override size labels in source titles or variant notes. Image pixel dimensions are not physical measurements. If physical sizes or room measurements are missing, estimate conservatively and do not assume exact fit.`,
-    `Style direction: ${input.style}. Client brief: ${input.notes || "Create a cohesive, comfortable, thoughtfully furnished interior."}.`,
+    `Style direction: ${input.style}. Apply style only to changes allowed by the selected task; it does not authorize altering preserved geometry, products, or furniture.\nClient brief: ${input.notes || (input.mode === "empty" ? "Remove movable furnishings and retain existing finishes and permanent fixtures." : input.mode === "paint" ? "Update surface colors and finishes while retaining all furniture and decor." : `Create a cohesive, comfortable, thoughtfully furnished ${outdoor ? "outdoor space" : "interior"}.`)}`,
     guide && input.mode !== "empty"
       ? "Captured furniture boxes are placement and approximate volume guides, not the final product shape or finish. Match a requested product to an existing box only when the brief or evidence identifies it as the replacement; do not turn every fixture box into a copy of a reference product. Client-confirmed product dimensions override estimated box sizes, while retaining the intended anchor and orientation if physically plausible. showFixtures=false hides boxes for inspection; it is not an instruction to delete permanent fixtures or proof that the room is empty."
       : "",
@@ -175,7 +184,7 @@ export function buildPrompt(
           : "Return only a polished interior photograph, without text, labels, collage, borders, or a before/after split.",
     "This is a design visualization, not a measurement or guarantee of fit.",
   ];
-  return parts.filter(Boolean).join(" ");
+  return parts.filter(Boolean).join("\n\n");
 }
 
 export const roomUpdate = z.union([
