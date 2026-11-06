@@ -23,17 +23,10 @@ export function Strip({
 }
 
 export function RoomTypes({ busy, onPick }: { busy: boolean; onPick: (type: string) => void }) {
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => setHydrated(true), []);
   return (
     <div className="room-types">
       {roomTypes.map((type) => (
-        <button
-          key={type}
-          className="button"
-          disabled={busy || !hydrated}
-          onClick={() => onPick(type)}
-        >
+        <button key={type} className="button" disabled={busy} onClick={() => onPick(type)}>
           {type}
         </button>
       ))}

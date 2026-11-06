@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useStudio } from "../hooks/use-studio";
 import { RoomTypes } from "./studio-controls";
@@ -6,10 +7,12 @@ import { StudioStage } from "./studio-stage";
 import { DesignPanel } from "./design-panel";
 import { StudioDialogs } from "./studio-dialogs";
 export function Studio({ roomId = "" }: { roomId?: string }) {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   const state = useStudio(roomId);
   const { session, busy, room, signed, create } = state;
   return (
-    <div className="app" data-room-id={roomId}>
+    <div className="app" data-room-id={roomId} inert={signed && !hydrated}>
       <TopBar state={state} />
 
       {!session ? (

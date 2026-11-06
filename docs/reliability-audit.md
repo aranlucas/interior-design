@@ -33,3 +33,9 @@ Independent review confirmed both defects and the fixes under the single-replica
 ## Additional CI-proven finding
 
 3. **High confidence, medium impact — first room-creation click can be lost before hydration.** Run `42310217649`, browser job `128209505063`, trace artifact `13548401951`: the enabled server-rendered Bedroom button accepted a click, but no request/navigation occurred; React DevTools console appeared afterward and the New room screen remained. `RoomTypes` renders enabled controls before the client attaches handlers. Expected: a clickable creation button creates the room. Disable creation choices until client hydration; the real journey intentionally clicks as soon as the button becomes actionable, so the original CI failure and corrected run establish the regression.
+
+### Hydration finding follow-up
+
+Run `42310547941` confirmed creation/autosave/rename/reload persistence now succeed, then reproduced the same lost-click defect on the delete button immediately after reload (browser job `128210601654`, artifact `13548224094`). The original guard covered room-type choices only. Apply `inert` to the authenticated studio until its hydration effect runs, covering all controls consistently, and remove the now-redundant room-type-only guard. Keep the E2E journey and all assertions unchanged. The `check` job passed, including baseline negative controls and production build.
+
+Independent incremental review accepted the broader guard and identified a native-navigation concern: signed-out sign-in links must remain usable before hydration. The guard now applies only when signed in, preserving the server-rendered Continue link.
