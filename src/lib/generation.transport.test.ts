@@ -54,7 +54,7 @@ it("sends Max quality and 4K PNG through the installed SDK's actual image edit t
   });
   await vi.waitFor(() => expect(storage.getJob(owner, jobId)?.status).toBe("succeeded"));
   expect(fetch).toHaveBeenCalledTimes(1);
-  expect(sent?.get("model")).toBe("gpt-image-2.5-sunburst");
+  expect(sent?.get("model")).toBe("gpt-image-2.6-sunburst");
   expect(sent?.get("quality")).toBe("max");
   expect(sent?.get("size")).toBe("3840x2160");
   expect(sent?.get("output_format")).toBe("png");

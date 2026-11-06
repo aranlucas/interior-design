@@ -15,7 +15,7 @@
     "fmt:check": "oxfmt --check"
   },
   "dependencies": {
-    "@ai-sdk/openai": "4.0.105",
+    "@ai-sdk/openai": "4.0.109",
     "@tanstack/query-db-collection": "^1.5.0",
     "@tanstack/react-db": "1.0.0-rc.1",
     "@tanstack/react-query": "^5.105.0",
@@ -24,7 +24,7 @@
     "@tanstack/react-start": "1.169.4",
     "@varlock/bitwarden-plugin": "latest",
     "@varlock/vite-integration": "^1.5.5",
-    "ai": "7.0.157",
+    "ai": "7.0.163",
     "cheerio": "^1.2.0",
     "ipaddr.js": "^2.5.0",
     "jose": "latest",

@@ -12,7 +12,7 @@ export const imageSize = z.enum([
 export const imageSettings = z.object({ quality: imageQuality, size: imageSize });
 export type ImageSettings = z.infer<typeof imageSettings>;
 export const defaultImageSettings: ImageSettings = { quality: "max", size: "3840x2160" };
-export const defaultImageModel = "gpt-image-2.5-sunburst";
+export const defaultImageModel = "gpt-image-2.6-sunburst";
 
 export const qualityOptions = [
   { value: "low", label: "Low · quick draft" },
@@ -33,7 +33,8 @@ export const sizeOptions = [
 
 export function outputCost(model: string, tokens: number | undefined) {
   // Other configurable models can have different pricing. Never invent a cost.
-  return /^gpt-image-2\.5-(sunburst|flare)(-|$)/.test(model) && tokens !== undefined
+  // Verified against the OpenAI image generation guide (2026-11-05).
+  return /^gpt-image-2\.[56]-(sunburst|flare)(-|$)/.test(model) && tokens !== undefined
     ? (tokens * 30) / 1_000_000
     : undefined;
 }

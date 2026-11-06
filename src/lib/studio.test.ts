@@ -147,6 +147,31 @@ describe("private studio", () => {
     expect(isOutdoor("Living room")).toBe(false);
   });
 
+  // An empty brief must respect the selected tool's contract, rather than
+  // accidentally asking the model to furnish an empty or paint-only result.
+  it.each(["empty", "paint"] as const)(
+    "keeps the default %s brief within the selected task",
+    (mode) => {
+      const prompt = buildPrompt(
+        "Living room",
+        designInput.parse({
+          roomId: crypto.randomUUID(),
+          notes: "",
+          style: "Japandi",
+          assetIds: [],
+          mode,
+        }),
+        [],
+        1,
+      );
+      expect(prompt).not.toContain("thoughtfully furnished");
+      expect(prompt).toContain("Apply style only to changes allowed by the selected task");
+      expect(prompt).toContain(
+        mode === "empty" ? "Remove movable furnishings" : "retaining all furniture and decor",
+      );
+    },
+  );
+
   it("anchors scale with room measurements, size guidance and the layout plan", () => {
     const input = designInput.parse({
       roomId: crypto.randomUUID(),
@@ -169,6 +194,8 @@ describe("private studio", () => {
     expect(p).toContain("about 50% of its width");
     expect(p).toContain("Estimated room geometry: back wall ~420 cm.");
     expect(p).toContain("Image pixel dimensions are not physical measurements");
+    expect(p).toContain("client-confirmed measurements take precedence over estimates");
+    expect(p).toContain("Do not alter architecture to satisfy the plan");
   });
 
   it("adds sketch rendering, people, and lighting to the prompt", () => {

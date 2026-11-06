@@ -72,7 +72,7 @@ it("persists a paid result after POST returns, scopes status, and releases the l
   expect(await s.load((await s.rooms(owner))[0].designs[0].key)).toEqual(new Uint8Array([1, 2]));
   expect((await s.rooms(owner))[0].notes).toBe("Edited while generating");
   expect((await s.rooms(owner))[0].designs[0].generation).toMatchObject({
-    model: "gpt-image-2.5-sunburst",
+    model: "gpt-image-2.6-sunburst",
     quality: "max",
     size: "3840x2160",
     outputTokens: 13000,
@@ -163,6 +163,8 @@ it("edits a design with a brush mask through the OpenAI edits endpoint", async (
     expect(prompt).toContain("Replace the rug");
     expect(prompt).toContain("outside the mask");
     expect(form.get("n")).toBe("1");
+    expect(form.get("model")).toBe("gpt-image-2.6-sunburst");
+    expect(form.get("output_format")).toBe("png");
     const image = form.get("image") as File;
     expect(image.type).toBe("image/png");
     expect(image.size).toBe(24);
