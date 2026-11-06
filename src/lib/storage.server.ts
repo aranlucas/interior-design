@@ -75,7 +75,15 @@ export async function mutateRooms<T>(sub: string, mutate: (all: Room[]) => T): P
     throw e;
   }
 }
+function hasRunningGeneration(sub: string) {
+  return !!db()
+    .prepare("SELECT 1 FROM generation_jobs WHERE owner=? AND status='running' LIMIT 1")
+    .get(sub);
+}
 export function claimGeneration(sub: string, ttl = 300_000) {
+  // A provider call can outlive its lease (including the layout pre-pass).
+  // Only settlement or startup recovery may release an admitted running job.
+  if (hasRunningGeneration(sub)) return false;
   const now = Date.now();
   return (
     db()
@@ -93,7 +101,7 @@ export async function deleteRoom(sub: string, roomId: string) {
     const index = all.findIndex((room) => room.id === roomId);
     if (index < 0) return false;
     const lease = db().prepare("SELECT expires FROM generation_leases WHERE owner=?").get(sub);
-    if (lease && Number(lease.expires) > Date.now())
+    if (hasRunningGeneration(sub) || (lease && Number(lease.expires) > Date.now()))
       throw new Response("Wait for your design to finish before deleting a room.", { status: 409 });
     const prefix = `${ownerPrefix(sub)}${roomId}/`;
     db().prepare("DELETE FROM objects WHERE substr(key,1,?)=?").run(prefix.length, prefix);

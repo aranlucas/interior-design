@@ -22,7 +22,7 @@ The Vite integration loads and validates config for `npm run dev` and `npm run b
 
 ## Development
 
-Node 24+. Install with `npm ci`, then run `npm run dev:local` for a local studio without Bitwarden or login. SQLite data defaults to `.data/`; generation is disabled unless you supply `OPENAI_API_KEY` in your shell. Override `DATA_DIR` or `APP_URL` as needed. When using `tailscale serve`, set `APP_URL` to the exact browser origin (for example, `https://host.tailnet.ts.net:8443`); its hostname is allowed by Vite and mutations require that origin.
+Node 24.8+. Install with `npm ci`, then run `npm run dev:local` for a local studio without Bitwarden or login. SQLite data defaults to `.data/`; generation is disabled unless you supply `OPENAI_API_KEY` in your shell. Override `DATA_DIR` or `APP_URL` as needed. When using `tailscale serve`, set `APP_URL` to the exact browser origin (for example, `https://host.tailnet.ts.net:8443`); its hostname is allowed by Vite and mutations require that origin.
 
 For the regular secrets-backed setup, save the bootstrap token in macOS Keychain or supply `BITWARDEN_ACCESS_TOKEN` in the environment, then run `npm run dev`. Validate with `npm run check`, `npm test`, `npm run lint`, and `npm run fmt:check`. Use `npm run fmt` to format and `npm run build` to build.
 
@@ -69,3 +69,7 @@ Runs request 1, 2, 4 or 8 variations in one call. A per-user lease prevents over
 Room measurements and editable product dimensions guide scale; client-supplied room measurements take precedence over estimates. Photo generation first attempts a vision layout plan (`OPENAI_LAYOUT_MODEL`), falling back to prompt-only guidance on failure. Freestyle, outdoor rooms and captured AI layouts skip that pre-pass. Pixel dimensions are never physical measurements, and AI output does not guarantee product fit.
 
 Product import reads metadata and images from public HTTPS pages, including Shopify variant images and size choices. Confirm or edit imported dimensions before generation. Requests reject non-public IP ranges, pin validated DNS results and recheck redirects. Pages that block access or require JavaScript need an uploaded photo; there is no automatic Zillow import or general web scraper.
+
+## Reliability validation
+
+See [the behavior audit](docs/reliability-audit.md) for findings and scope. CI runs the existing checks/tests, a production build without external secrets, a negative control proving the targeted regressions fail on the audited baseline, and `npm run test:e2e` using published `e2e` and its web engine. The browser journey creates a room, autosaves a brief, renames it, verifies persistence after reload, and deletes it. It uses an isolated `.data/e2e` SQLite database and the existing development auth bypass; no model calls or provider credentials are required. Baseline logs and browser failure evidence are uploaded as CI artifacts. Tests and builds for this audit run only in CI.
