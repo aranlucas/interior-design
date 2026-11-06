@@ -62,4 +62,18 @@ requiring user-provided overlapping photos. These express real external contract
 
 ## Review and validation
 
-Sequential independent review in progress. Findings and CI results recorded below.
+- First independent whole-repository review found the media transaction boundary,
+  brush mask dimension mismatch, copied camera input, and unused hook return fields.
+- Second sequential review found no correctness blockers in implementation or
+  regression tests. Removed seven confirmed unused hook return fields; reviewer
+  found no further worthwhile structural changes after that cleanup.
+- Preserved meaningful behavioral tests; removed only the transaction identity
+  assertion. Added mask export and camera-input boundary tests plus real SQLite
+  rollback/ownership/capacity/deletion regressions. Rasterization remains a browser
+  platform responsibility; no local browser tests were run.
+- Local validation: formatting completed; `git diff --check` clean. No tests or
+  builds ran locally. Existing CI is sufficient and unchanged; results pending.
+- GitHub reports this repository was renamed from `aranlucas/ikea-interior-design`
+  to `aranlucas/interior-design`; PR: https://github.com/aranlucas/interior-design/pull/28.
+  The later portfolio registration under that new name is the same remote, so
+  preserve this result when routing rather than duplicating implementation.
