@@ -49,6 +49,17 @@ export function exampleAiRoomLayout(): AiRoomLayout {
         photoNumbers: [1],
       },
     ],
+    cameras: [
+      {
+        photoNumber: 1,
+        x: 2,
+        z: 0.4,
+        height: 1.5,
+        yawDegrees: 0,
+        hfovDegrees: 70,
+        leftToRight: ["Island"],
+      },
+    ],
   };
 }
 

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { StudioState } from "./use-studio";
 import type { Room } from "../lib/types";
 import type { PhotoMatches, ReconstructedScene } from "../lib/reconstruction";
+import type { AiRoomLayout } from "../lib/ai-room-layout";
 import { api, json } from "../lib/studio-client";
 
 export function useReconstruction(state: StudioState) {
@@ -56,5 +57,15 @@ export function useReconstruction(state: StudioState) {
       await client.invalidateQueries({ queryKey: key });
     },
   });
-  return { status, scene, build, cancel };
+  const saveLayout = useMutation({
+    mutationFn: async (layout: AiRoomLayout) => {
+      const response = await api<{ room: Room; scene: ReconstructedScene }>("/api/reconstruct", {
+        ...json({ roomId: room.id, resultId: result!.id, layout }),
+        method: "PATCH",
+      });
+      client.setQueryData(["reconstruction-result", room.id, result?.id], response.scene);
+      await state.update(response.room);
+    },
+  });
+  return { status, scene, build, cancel, saveLayout };
 }

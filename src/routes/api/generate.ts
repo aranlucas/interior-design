@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireUser, sameOrigin } from "../../lib/auth.server";
 import { getJob, rooms } from "../../lib/storage.server";
-import { startGeneration } from "../../lib/generation.server";
-import { designInput, uuid } from "../../lib/validation";
+import { startFinalRender, startGeneration } from "../../lib/generation.server";
+import { designInput, finalRenderInput, uuid } from "../../lib/validation";
 import { handle } from "../../lib/http.server";
 export const Route = createFileRoute("/api/generate")({
   server: {
@@ -11,7 +11,12 @@ export const Route = createFileRoute("/api/generate")({
         handle(async () => {
           sameOrigin(request);
           const user = await requireUser(request);
-          const input = designInput.parse(await request.json());
+          const body = await request.json();
+          if (body && typeof body === "object" && "final" in body)
+            return Response.json(await startFinalRender(user.sub, finalRenderInput.parse(body)), {
+              status: 202,
+            });
+          const input = designInput.parse(body);
           return Response.json(await startGeneration(user.sub, input), { status: 202 });
         }),
       GET: ({ request }) =>

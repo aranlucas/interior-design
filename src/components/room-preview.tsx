@@ -9,7 +9,7 @@ import { AiRoomLayoutScene } from "./ai-room-layout-scene";
 const ManualRoomPreview = lazy(() => import("./manual-room-preview"));
 
 export default function RoomPreview({ state }: { state: StudioState }) {
-  const { status, scene, build, cancel } = useReconstruction(state);
+  const { status, scene, build, cancel, saveLayout } = useReconstruction(state);
   const [matching, setMatching] = useState(false);
   const [manual, setManual] = useState(false);
   const [mode, setMode] = useState<"classical" | "ai-layout">(
@@ -40,7 +40,17 @@ export default function RoomPreview({ state }: { state: StudioState }) {
           layout={aiResult}
           resultId={result!.id}
           disabled={state.locked || busy || !!outdated || !state.session?.generationConfigured}
-          onGenerate={(roomGuide) => void state.generate({ roomGuide })}
+          products={state.refs
+            .filter((asset) => asset.kind === "product")
+            .map((asset) => ({ id: asset.id, name: asset.name, dimensions: asset.dimensions }))}
+          onSave={(layout) => saveLayout.mutateAsync(layout)}
+          onGenerate={(roomGuide, placed) =>
+            void state.generate({
+              roomGuide,
+              // Placed products need their photos; keep the client's selection order first.
+              assetIds: [...new Set([...state.selected, ...placed])].slice(0, 10),
+            })
+          }
         />
       ) : scene.data ? (
         <ReconstructedRoomScene data={scene.data} photos={state.photos} />

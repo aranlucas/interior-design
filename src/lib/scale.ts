@@ -164,21 +164,22 @@ export function formatDimensions(dimensions: Dimensions): string {
     .join(" × ");
 }
 
-/** Longest room axis — the best proxy for the wall a product will sit against. */
-function wallCm(room: Dimensions | undefined): number | undefined {
-  if (!room) return undefined;
-  return Math.max(room.widthCm || 0, room.depthCm || 0, room.heightCm || 0) || undefined;
-}
+const DOOR_WIDTH_CM = 80;
+const DOOR_HEIGHT_CM = 203;
+const COUNTER_HEIGHT_CM = 90;
 
 /**
- * Builds per-reference scale guidance from parsed sizes, with real ratios when the
- * room's measurements are known. Falls back to the raw size text when parsing fails.
+ * Builds per-reference scale guidance. Image models judge size better against familiar objects
+ * than against percentages, so sizes are related to standard doors and counters. When the room
+ * is measured, the ratio is given against each measured side because the wall a piece will sit
+ * against is unknown here.
  */
 export function scaleNotes(
   references: { name: string; kind: string; dimensions?: string }[],
   roomMeasurements?: string,
 ): string[] {
-  const wall = wallCm(parseRoomMeasurements(roomMeasurements));
+  const room = parseRoomMeasurements(roomMeasurements);
+  const sides = [room?.widthCm, room?.depthCm].filter((v): v is number => !!v);
   const notes: string[] = [];
   for (const reference of references) {
     if (!reference.dimensions?.trim()) continue;
@@ -188,12 +189,24 @@ export function scaleNotes(
       notes.push(`${name}: size ${reference.dimensions.trim()} (interpret conservatively).`);
       continue;
     }
-    let note = `${name}: ${formatDimensions(parsed)}`;
+    const anchors: string[] = [];
     const width = parsed.widthCm ?? parsed.depthCm;
-    if (width !== undefined && wall !== undefined) {
-      const ratio = width / wall;
-      note += ` — against a ~${formatCm(wall)} wall it should span about ${Math.round(ratio * 100)}% of its width`;
-      if (ratio > 0.6) note += "; keep walkways clear and leave it breathing room";
+    if (width !== undefined)
+      anchors.push(
+        `about ${(width / DOOR_WIDTH_CM).toFixed(1)} interior-door widths (~80 cm) across`,
+      );
+    if (parsed.heightCm !== undefined)
+      anchors.push(
+        parsed.heightCm < 120
+          ? `about ${(parsed.heightCm / COUNTER_HEIGHT_CM).toFixed(1)}× kitchen-counter height (~90 cm)`
+          : `about ${Math.round((parsed.heightCm / DOOR_HEIGHT_CM) * 100)}% of a standard door's height (~203 cm)`,
+      );
+    let note = `${name}: ${formatDimensions(parsed)}`;
+    if (anchors.length) note += ` — ${anchors.join(", ")}`;
+    if (width !== undefined && sides.length) {
+      note += `; ${sides.map((side) => `${Math.round((width / side) * 100)}% of the room's ${formatCm(side)} side`).join(" or ")}`;
+      if (width / Math.min(...sides) > 0.6)
+        note += "; keep walkways clear and leave it breathing room";
     }
     notes.push(`${note}.`);
   }

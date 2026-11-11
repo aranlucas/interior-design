@@ -19,6 +19,7 @@ export const Route = createFileRoute("/api/designs/edit")({
             roomId: form.get("roomId"),
             designId: form.get("designId"),
             prompt: form.get("prompt"),
+            assetIds: form.getAll("assetIds"),
           });
           return Response.json(
             await startEditGeneration(user.sub, {

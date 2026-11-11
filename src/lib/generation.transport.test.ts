@@ -51,6 +51,7 @@ it("sends Max quality and 4K PNG through the installed SDK's actual image edit t
     notes: "Linen sofa",
     style: "Japandi",
     assetIds: [],
+    imageSettings: { quality: "max", size: "3840x2160" },
   });
   await vi.waitFor(() => expect(storage.getJob(owner, jobId)?.status).toBe("succeeded"));
   expect(fetch).toHaveBeenCalledTimes(1);

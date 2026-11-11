@@ -17,6 +17,8 @@ export type Design = {
   createdAt: string;
   baseId: string;
   plan?: string;
+  /** The full instruction text sent to the image model, for debugging and evaluation. */
+  fullPrompt?: string;
   mode?: string;
   starred?: boolean;
   inferred?: boolean;
@@ -27,6 +29,8 @@ export type Design = {
     outputTokens?: number;
     outputCostUsd?: number;
   };
+  /** References supplied to a brush edit. */
+  assetIds?: string[];
   guide?: Omit<RoomGuide, "image"> & {
     key: string;
     layoutKey: string;
