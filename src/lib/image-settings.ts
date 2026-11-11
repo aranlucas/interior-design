@@ -11,7 +11,9 @@ export const imageSize = z.enum([
 ]);
 export const imageSettings = z.object({ quality: imageQuality, size: imageSize });
 export type ImageSettings = z.infer<typeof imageSettings>;
-export const defaultImageSettings: ImageSettings = { quality: "max", size: "3840x2160" };
+// Draft quickly at the source photo's framing; "Render final" re-renders a chosen draft at max.
+export const defaultImageSettings: ImageSettings = { quality: "medium", size: "photo" };
+export const finalImageSettings: ImageSettings = { quality: "max", size: "photo" };
 export const defaultImageModel = "gpt-image-2.6-sunburst";
 
 export const qualityOptions = [

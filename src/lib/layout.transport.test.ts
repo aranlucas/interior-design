@@ -26,7 +26,7 @@ it.each(["image/png", undefined])(
             index: 0,
             message: {
               role: "assistant",
-              content: JSON.stringify({ roomEstimate: "4 m wide", placements: [] }),
+              content: JSON.stringify({ roomEstimate: "4 m wide", placements: [], cautions: "" }),
             },
             finish_reason: "stop",
           },

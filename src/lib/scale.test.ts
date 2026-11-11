@@ -55,28 +55,35 @@ describe("parseDimensions", () => {
 });
 
 describe("scaleNotes", () => {
-  it("computes ratios against the room's largest axis", () => {
+  it("relates sizes to familiar objects and states ratios against each measured room side", () => {
     const notes = scaleNotes(
       [{ name: "Sofa", kind: "product", dimensions: "211 × 88 × 83 cm" }],
       "4.2 × 3.6 m",
     );
     expect(notes).toHaveLength(1);
     expect(notes[0]).toContain("Sofa: 211 cm wide × 88 cm deep × 83 cm high");
-    expect(notes[0]).toContain("about 50% of its width");
+    // 211 / 80 cm door ≈ 2.6; 83 / 90 cm counter ≈ 0.9.
+    expect(notes[0]).toContain("about 2.6 interior-door widths (~80 cm) across");
+    expect(notes[0]).toContain("about 0.9× kitchen-counter height");
+    // The target wall is unknown: 211 / 420 ≈ 50%, 211 / 360 ≈ 59%.
+    expect(notes[0]).toContain("50% of the room's 420 cm side or 59% of the room's 360 cm side");
+    expect(notes[0]).not.toContain("walkways");
   });
 
-  it("warns about walkways for dominant pieces", () => {
+  it("compares tall pieces with a door and warns when a piece dominates the shorter side", () => {
     const notes = scaleNotes(
-      [{ name: "Wardrobe", kind: "product", dimensions: "300 cm wide" }],
+      [{ name: "Wardrobe", kind: "product", dimensions: "300 × 60 × 210 cm" }],
       "4.2 × 3.6 m",
     );
-    expect(notes[0]).toContain("about 71%");
+    // 210 / 203 cm door ≈ 103%; 300 / 360 ≈ 83% of the shorter side.
+    expect(notes[0]).toContain("about 103% of a standard door's height");
+    expect(notes[0]).toContain("83% of the room's 360 cm side");
     expect(notes[0]).toContain("keep walkways clear");
   });
 
-  it("falls back to raw sizes without room data or parseable numbers", () => {
+  it("omits room ratios without room data and falls back to raw unparseable sizes", () => {
     expect(scaleNotes([{ name: "Table", kind: "product", dimensions: "200 × 90 cm" }])).toEqual([
-      "Table: 200 cm wide × 90 cm deep.",
+      "Table: 200 cm wide × 90 cm deep — about 2.5 interior-door widths (~80 cm) across.",
     ]);
     expect(scaleNotes([{ name: "Vase", kind: "inspiration", dimensions: "large" }])).toEqual([
       "Vase: size large (interpret conservatively).",

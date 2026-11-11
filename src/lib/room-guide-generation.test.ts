@@ -127,16 +127,17 @@ it("sends the actual 3D image first through the installed SDK, then ordered sour
   );
   expect(bytes).toEqual([jpeg, ...[1, 0, 3, 2, 4].map((i) => new Uint8Array([...output, i]))]);
   expect(form!.get("size")).toBe("3520x2336");
-  expect(form!.get("quality")).toBe("max");
+  expect(form!.get("quality")).toBe("medium");
   expect(form!.get("output_format")).toBe("png");
   expect(form!.get("n")).toBe("1");
   const prompt = String(form!.get("prompt"));
   for (const text of [
-    "Image 1 is the client's chosen 3D",
-    "Images 2 through 3",
+    "Image 1: the client's chosen camera",
+    "an elevated cutaway view",
+    "Images 2–3",
     "Image 4: inspiration",
     "Image 5: product",
-    "photoNumber 1 is image 2",
+    "photo 1 is image 2",
     "not as the output camera",
     "NOT measurements",
     "4 × 6 m",
@@ -148,7 +149,8 @@ it("sends the actual 3D image first through the installed SDK, then ordered sour
     "geometry",
     "previous design",
     "inferred",
-    "Do not mirror",
+    "without changing the camera, mirroring the room",
+    "Image 6: the previous design",
     "Preserve its furniture identities, quantities, materials, physical proportions, and relative placement",
     "not several",
     "Client-confirmed physical size: 100 × 40 × 80 cm",
@@ -158,7 +160,10 @@ it("sends the actual 3D image first through the installed SDK, then ordered sour
     "room silhouette",
   ])
     expect(prompt).toContain(text);
-  expect(prompt).toContain(JSON.stringify(exampleAiRoomLayout()));
+  // The layout is described in prose with projected screen positions, not dumped as raw JSON.
+  expect(prompt).not.toContain(JSON.stringify(exampleAiRoomLayout().footprint));
+  expect(prompt).not.toContain("Three.js");
+  expect(prompt).toMatch(/Island \(island, visible in photo 1\).*image 1 x \d\.\d\d–\d\.\d\d, y/);
   const design = (await s.rooms(owner))[0].designs[0];
   expect(design.guide).toMatchObject({
     resultId: input.roomGuide!.resultId,
@@ -170,6 +175,7 @@ it("sends the actual 3D image first through the installed SDK, then ordered sour
     previousDesignId: input.previousDesignId,
   });
   expect(design.prompt).toBe(input.notes);
+  expect(design.fullPrompt).toBe(prompt);
   expect(await s.load(design.guide!.key)).toEqual(jpeg);
   const snapshot = JSON.parse(Buffer.from((await s.load(design.guide!.layoutKey))!).toString());
   expect(snapshot.layout).toEqual(exampleAiRoomLayout());
@@ -330,7 +336,7 @@ it("separates product identity, style inspiration, and estimated placement witho
     expect(prompt).toContain("Client-confirmed product dimensions override estimated box sizes");
     expect(prompt).toContain("A replacement occupies the replaced item's location and orientation");
     expect(prompt).toContain("Never shrink, stretch, crop away, or push furniture through walls");
-    expect(prompt).toContain("showFixtures=false hides boxes for inspection");
+    expect(prompt).toContain("When fixtures are hidden in the render (showFixtures off)");
     expect(prompt.indexOf("Before returning, visually check")).toBeGreaterThan(
       prompt.indexOf("Style direction:"),
     );
@@ -343,11 +349,62 @@ it("separates product identity, style inspiration, and estimated placement witho
     undefined,
     constraints,
   );
-  expect(empty).toContain("remove movable furnishings, retain permanent fixtures");
+  expect(empty).toContain("Remove movable furnishings, retain permanent fixtures");
   expect(empty).not.toContain("Return only a polished photograph");
   expect(empty).toContain("Final camera check:");
   expect(empty).toContain("Remove movable furniture even when it appears as a box");
   expect(empty).not.toContain("Product references specify the exact furniture identity");
   expect(empty).not.toContain("Furniture placement rules:");
   expect(empty).not.toContain("Before returning, visually check each requested product");
+});
+
+it("sends no references in empty mode and skips the placement pre-pass without products", async () => {
+  const { s, owner, input, assets } = await fixture();
+  const layout = await import("./layout.server");
+  const analyze = vi.spyOn(layout, "analyzeLayout").mockResolvedValue("Unused plan.");
+  const forms: FormData[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+    forms.push(init?.body as FormData);
+    return Response.json({ created: 1, data: [{ b64_json: output.toString("base64") }] });
+  });
+  const { startGeneration } = await import("./generation.server");
+  const files = async (form: FormData) =>
+    Promise.all(
+      [...form.values()]
+        .filter((value): value is File => value instanceof File)
+        .map(async (file) => new Uint8Array(await file.arrayBuffer())),
+    );
+  const empty = await startGeneration(owner, { ...input, roomGuide: undefined, mode: "empty" });
+  await vi.waitFor(() => expect(s.getJob(owner, empty.jobId)?.status).toBe("succeeded"));
+  // Base photo, context photo, previous design: no product or inspiration images.
+  expect(await files(forms[0])).toEqual([0, 1, 4].map((i) => new Uint8Array([...output, i])));
+  expect(String(forms[0].get("prompt"))).not.toContain("Reference 2");
+  const styled = await startGeneration(owner, {
+    ...input,
+    roomGuide: undefined,
+    mode: "stage",
+    assetIds: [assets[3].id],
+  });
+  await vi.waitFor(() => expect(s.getJob(owner, styled.jobId)?.status).toBe("succeeded"));
+  expect(analyze).not.toHaveBeenCalled();
+});
+
+it("treats references as swatches in paint mode instead of products to add", async () => {
+  const { input } = await fixture();
+  const prompt = buildPrompt(
+    "Living room",
+    { ...input, mode: "paint", roomGuide: undefined, previousDesignId: undefined },
+    [
+      { name: "Green sofa", kind: "product" },
+      { name: "Sage room", kind: "inspiration" },
+    ],
+    1,
+  );
+  expect(prompt).toContain(
+    "Image 2: product, Green sofa. Role: a color, material, or style swatch only.",
+  );
+  expect(prompt).toContain("Do not add, remove, replace, or move furniture or decor to match them");
+  expect(prompt).not.toContain("the exact product to include");
+  expect(prompt).not.toContain("Use one instance of each product");
+  expect(prompt).not.toContain("visually check each requested product");
 });

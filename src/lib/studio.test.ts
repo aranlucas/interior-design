@@ -107,7 +107,8 @@ describe("private studio", () => {
       [],
       0,
     );
-    expect(refine).toContain("The final image is the previous design");
+    expect(refine).toContain("There is no architectural photo: refine image 1 in place");
+    expect(refine).toContain("Image 1: the previous design");
     expect(refine).not.toContain("compose the space from scratch");
     const parsed = designInput.parse({ ...base, count: 8, orientation: "portrait" });
     expect(parsed.count).toBe(8);
@@ -185,7 +186,9 @@ describe("private studio", () => {
     expect(p).toContain("physical scale authority");
     expect(p).toContain("4.2 × 3.6 m, ceiling 2.6 m");
     expect(p).toContain("Sofa: 211 cm wide × 88 cm deep × 83 cm high");
-    expect(p).toContain("about 50% of its width");
+    // The target wall is unknown, so the ratio is stated against each measured side.
+    expect(p).toContain("50% of the room's 420 cm side or 59% of the room's 360 cm side");
+    expect(p).toContain("about 2.6 interior-door widths");
     expect(p).toContain("Estimated room geometry: back wall ~420 cm.");
     expect(p).toContain("Image pixel dimensions are not physical measurements");
     expect(p).toContain("client-confirmed measurements take precedence over estimates");

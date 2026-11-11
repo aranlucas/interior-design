@@ -19,6 +19,9 @@ export function DesignEditor({
   const [ready, setReady] = useState(false);
   const [brush, setBrush] = useState(40);
   const [instruction, setInstruction] = useState("");
+  const [refIds, setRefIds] = useState(() =>
+    state.selected.filter((id) => state.refs.some((r) => r.id === id)).slice(0, 4),
+  );
   const [error, setError] = useState("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<ImageBitmap | null>(null);
@@ -156,7 +159,7 @@ export function DesignEditor({
       const bitmap = imageRef.current;
       if (!bitmap) throw new Error("Could not load the design image.");
       const maskBlob = await exportEditMask(mask, bitmap);
-      const ok = await state.submitEdit(design, instruction.trim(), maskBlob);
+      const ok = await state.submitEdit(design, instruction.trim(), maskBlob, refIds);
       if (ok) onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "The edit failed.");
@@ -206,6 +209,29 @@ export function DesignEditor({
           placeholder="Replace the rug with a jute one. Fix the warped cabinet door."
         />
       </label>
+      {state.refs.length > 0 && (
+        <fieldset className="field edit-refs" disabled={busy}>
+          <legend>
+            References <em>up to 4, sent with the edit</em>
+          </legend>
+          {state.refs.map((ref) => {
+            const on = refIds.includes(ref.id);
+            return (
+              <label className="checkbox" key={ref.id}>
+                <input
+                  type="checkbox"
+                  checked={on}
+                  disabled={!on && refIds.length >= 4}
+                  onChange={() =>
+                    setRefIds((ids) => (on ? ids.filter((id) => id !== ref.id) : [...ids, ref.id]))
+                  }
+                />
+                {ref.name}
+              </label>
+            );
+          })}
+        </fieldset>
+      )}
       <div className="field-row">
         <button className="button" type="button" disabled={busy || !ready} onClick={reset}>
           Reset

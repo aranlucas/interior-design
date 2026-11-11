@@ -1,4 +1,6 @@
-import { selectAiRoomPhotos } from "./ai-room-layout";
+import { selectAiRoomPhotos, validateAiRoomLayout } from "./ai-room-layout";
+import { z } from "zod";
+import type { ReconstructedScene } from "./reconstruction";
 import { acquireHeavyWork } from "./heavy-work.server";
 import { ENV } from "varlock/env";
 import { reconstructionInput } from "./reconstruction";
@@ -198,4 +200,59 @@ export function cancelRoomReconstruction(owner: string, roomId: string, jobId?: 
     if (build.owner === owner && build.roomId === roomId && (!jobId || id === jobId))
       build.controller.abort();
   }
+}
+export const aiLayoutEditInput = z.object({
+  roomId: z.uuid(),
+  resultId: z.uuid(),
+  layout: z.unknown(),
+});
+
+/** Replace the saved AI layout with a client-edited version of the same build. */
+export async function saveAiLayoutEdits(owner: string, value: unknown) {
+  const input = aiLayoutEditInput.parse(value);
+  const room = await reconstructionRoom(owner, input.roomId);
+  const job = room.reconstruction;
+  const result = job?.result;
+  if (!result || result.id !== input.resultId || result.kind !== "ai-layout")
+    throw new Response("That AI layout is no longer available. Refresh and try again.", {
+      status: 409,
+    });
+  if (job.status === "running")
+    throw new Response("Wait for the current build to finish before editing.", { status: 409 });
+  if (!result.key.startsWith(`${ownerPrefix(owner)}${room.id}/`))
+    throw new Response("Reconstruction not found", { status: 404 });
+  const bytes = await load(result.key);
+  if (!bytes) throw new Response("Reconstruction not found", { status: 404 });
+  const scene: ReconstructedScene = JSON.parse(Buffer.from(bytes).toString());
+  if (scene.kind !== "ai-layout" || !scene.sourcePhotoIds?.length)
+    throw new Response("Rebuild the AI layout before editing it.", { status: 409 });
+  let layout;
+  try {
+    layout = validateAiRoomLayout(input.layout, scene.sourcePhotoIds.length);
+  } catch (error) {
+    throw new Response(
+      error instanceof Error && !(error instanceof z.ZodError)
+        ? error.message
+        : "Those layout edits are out of range. Keep elements inside the room and try again.",
+      { status: 400 },
+    );
+  }
+  if (
+    layout.products?.some(
+      (product) => !room.assets.some((a) => a.id === product.assetId && a.kind !== "room"),
+    )
+  )
+    throw new Response("Place products from this room's references.", { status: 400 });
+  const next: ReconstructedScene = { ...scene, layout };
+  await save(result.key, JSON.stringify(next), "application/json");
+  const updated = await mutateRooms(owner, (all) => {
+    const target = all.find((r) => r.id === room.id);
+    if (!target || target.reconstruction?.result?.id !== result.id)
+      throw new Response("That AI layout was replaced while saving. Refresh and try again.", {
+        status: 409,
+      });
+    target.reconstruction.result.fixtureCount = layout.fixtures.length;
+    return target;
+  });
+  return { room: updated, scene: next };
 }

@@ -8,6 +8,7 @@ import { reconstructionEngineAvailable } from "../../lib/colmap-runner.server";
 import {
   cancelRoomReconstruction,
   reconstructionRoom,
+  saveAiLayoutEdits,
   startReconstruction,
 } from "../../lib/reconstruction.server";
 
@@ -47,6 +48,12 @@ export const Route = createFileRoute("/api/reconstruct")({
             { room: await startReconstruction(user.sub, await request.json()) },
             { status: 202 },
           );
+        }),
+      PATCH: ({ request }) =>
+        handle(async () => {
+          sameOrigin(request);
+          const user = await requireUser(request);
+          return Response.json(await saveAiLayoutEdits(user.sub, await request.json()));
         }),
       DELETE: ({ request }) =>
         handle(async () => {

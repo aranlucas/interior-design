@@ -1,5 +1,12 @@
+import { focalLength35mm, longEdgeFov } from "./exif";
 import { expect, it } from "vitest";
-import { jpegDimensions, outputSize, orientationSize, pngDimensions } from "./image-size";
+import {
+  jpegDimensions,
+  outputSize,
+  orientationSize,
+  pngDimensions,
+  webpDimensions,
+} from "./image-size";
 function jpeg(width: number, height: number, marker = 0xc0) {
   return new Uint8Array([
     255,
@@ -77,4 +84,53 @@ it("reads PNG dimensions for designs and masks", () => {
   expect(outputSize(png(1200, 800))).toBe("3520x2336");
   expect(pngDimensions(png(100, 100).slice(0, 12))).toBeUndefined();
   expect(pngDimensions(new Uint8Array([1, 2, 3]))).toBeUndefined();
+});
+
+it("reads WebP photo dimensions so their framing is preserved instead of defaulting to 16:9", () => {
+  // RIFF/WEBP with a VP8X chunk: canvas width-1 and height-1 as 24-bit little-endian values.
+  const webp = new Uint8Array(30);
+  webp.set(
+    [..."RIFF"].map((c) => c.charCodeAt(0)),
+    0,
+  );
+  webp.set(
+    [..."WEBPVP8X"].map((c) => c.charCodeAt(0)),
+    8,
+  );
+  webp.set([10, 0, 0, 0], 16);
+  webp.set([0xbf, 0x0f, 0x00], 24); // 4031 → 4032 wide
+  webp.set([0xcf, 0x0b, 0x00], 27); // 3023 → 3024 high
+  expect(webpDimensions(webp)).toEqual({ width: 4032, height: 3024 });
+  const [width, height] = outputSize(webp).split("x").map(Number);
+  expect(width / height).toBeCloseTo(4 / 3, 1);
+  expect(webpDimensions(new Uint8Array(30))).toBeUndefined();
+});
+
+it("reads the 35 mm-equivalent focal length from JPEG EXIF", () => {
+  // Little-endian TIFF: IFD0 at 8 points to an Exif IFD at 26 holding tag 0xA405 = 26 mm.
+  // prettier-ignore
+  const tiff = [
+    0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x69, 0x87, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x05, 0xa4, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
+  ];
+
+  const app1 = [...[..."Exif"].map((c) => c.charCodeAt(0)), 0, 0, ...tiff];
+  const jpeg = new Uint8Array([
+    0xff,
+    0xd8,
+    0xff,
+    0xe1,
+    (app1.length + 2) >> 8,
+    (app1.length + 2) & 0xff,
+    ...app1,
+    0xff,
+    0xd9,
+  ]);
+  expect(focalLength35mm(jpeg)).toBe(26);
+  // A 26 mm lens spans 2·atan(36 / 52) ≈ 69.4° across a 36 mm frame's long edge.
+  expect(longEdgeFov(26)).toBeCloseTo(69.4, 1);
+  expect(focalLength35mm(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]))).toBeUndefined();
 });

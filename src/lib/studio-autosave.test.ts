@@ -160,7 +160,7 @@ it("paces image settings and brief edits together without leaking settings betwe
   const { data, writes, close } = await setup();
   const editor = data.draftForm(room);
   editor.formControl.subscribe({ formState: { values: true }, callback: () => {} });
-  expect(editor.getValues("imageSettings")).toEqual({ quality: "max", size: "3840x2160" });
+  expect(editor.getValues("imageSettings")).toEqual({ quality: "medium", size: "photo" });
   editor.setValue("imageSettings", { quality: "high", size: "photo" });
   const settings = data.saveDraft("a", editor.getValues());
   editor.setValue("notes", "Keep the windows");
@@ -177,8 +177,8 @@ it("paces image settings and brief edits together without leaking settings betwe
   ]);
   expect(data.getRoom("a").get("a")?.imageSettings).toEqual({ quality: "high", size: "photo" });
   expect(data.draftForm({ ...room, id: "b" }).getValues("imageSettings")).toEqual({
-    quality: "max",
-    size: "3840x2160",
+    quality: "medium",
+    size: "photo",
   });
   await close();
 });

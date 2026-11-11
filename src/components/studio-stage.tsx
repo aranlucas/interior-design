@@ -6,6 +6,7 @@ import {
   ImagePlus,
   LoaderCircle,
   MoveHorizontal,
+  Sparkles,
   Star,
 } from "lucide-react";
 import { assetUrl } from "../lib/types";
@@ -123,6 +124,17 @@ export function StudioStage({ state }: { state: StudioState }) {
             >
               <Brush size={16} />
             </button>
+            {active.mode !== "final" && active.generation?.quality !== "max" && (
+              <button
+                className="icon-button"
+                aria-label="Render final at maximum detail"
+                title="Render final · max quality, same design"
+                disabled={locked || !state.session?.generationConfigured}
+                onClick={() => void state.renderFinal(active)}
+              >
+                <Sparkles size={16} />
+              </button>
+            )}
             {comparisonKey && (
               <button
                 className="icon-button"
@@ -306,6 +318,12 @@ export function StudioStage({ state }: { state: StudioState }) {
                 ` · $${active.generation.outputCostUsd.toFixed(4)} image output`}
               . Input tokens are billed separately.
             </p>
+          )}
+          {active.fullPrompt && (
+            <details>
+              <summary>Prompt sent to the image model</summary>
+              <pre className="design-prompt">{active.fullPrompt}</pre>
+            </details>
           )}
         </details>
       )}

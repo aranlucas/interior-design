@@ -329,7 +329,11 @@ export function useStudio(roomId: string) {
     });
     return queryClient.invalidateQueries({ queryKey: generationOptions().queryKey });
   }
-  async function generate(options?: { fillGaps?: boolean; roomGuide?: RoomGuide }) {
+  async function generate(options?: {
+    fillGaps?: boolean;
+    roomGuide?: RoomGuide;
+    assetIds?: string[];
+  }) {
     if (!room) return;
     if (!base && mode !== "freestyle") return;
     setStarting(true);
@@ -342,7 +346,7 @@ export function useStudio(roomId: string) {
         baseId: photoLess ? undefined : base?.id,
         notes: getDraft().notes,
         style: getDraft().style,
-        assetIds: selected,
+        assetIds: options?.assetIds ?? selected,
         previousDesignId: refine ? active?.id : undefined,
         mode,
         count,
@@ -361,7 +365,30 @@ export function useStudio(roomId: string) {
       setStarting(false);
     }
   }
-  async function submitEdit(design: Design, instruction: string, mask: Blob): Promise<boolean> {
+  async function renderFinal(design: Design) {
+    if (!room) return;
+    setStarting(true);
+    setError("");
+    try {
+      await queryClient.cancelQueries({ queryKey: generationOptions().queryKey });
+      const r = await generationMutation.mutateAsync({
+        roomId: room.id,
+        designId: design.id,
+        final: true,
+      });
+      await seedWatch(r.jobId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The final render failed.");
+    } finally {
+      setStarting(false);
+    }
+  }
+  async function submitEdit(
+    design: Design,
+    instruction: string,
+    mask: Blob,
+    assetIds: string[] = [],
+  ): Promise<boolean> {
     if (!room) return false;
     setStarting(true);
     setError("");
@@ -372,6 +399,7 @@ export function useStudio(roomId: string) {
       data.set("designId", design.id);
       data.set("prompt", instruction);
       data.set("mask", mask, "mask.png");
+      for (const id of assetIds) data.append("assetIds", id);
       const r = await api<{ jobId: string }>(studioUrls.editDesign, { method: "POST", body: data });
       await seedWatch(r.jobId);
       return true;
@@ -473,6 +501,7 @@ export function useStudio(roomId: string) {
     deleteAsset,
     generate,
     submitEdit,
+    renderFinal,
     drop,
   };
 }

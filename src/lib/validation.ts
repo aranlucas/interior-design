@@ -52,7 +52,10 @@ export const editInput = z.object({
   roomId: uuid,
   designId: uuid,
   prompt: z.string().trim().min(1).max(1000),
+  assetIds: z.array(uuid).max(4).default([]),
 });
+/** Re-render an approved draft at maximum detail without design changes. */
+export const finalRenderInput = z.object({ roomId: uuid, designId: uuid, final: z.literal(true) });
 
 export const roomUpdate = z.union([
   z.object({ roomId: uuid, model: roomModelInput }),
