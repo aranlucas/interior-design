@@ -20,10 +20,19 @@ export function Studio({ roomId = "" }: { roomId?: string }) {
           <LoaderCircle className="spin muted" size={20} aria-label="Loading" />
         </main>
       ) : !signed ? (
-        <main className="center">
-          <div className="card">
-            <h1>Sign in</h1>
-            <p className="muted">Use your account to open your rooms.</p>
+        <main className="center welcome">
+          <div className="welcome-art" aria-hidden>
+            <span className="welcome-window" />
+            <span className="welcome-sofa" />
+            <span className="welcome-lamp" />
+          </div>
+          <div className="card welcome-card">
+            <p className="eyebrow">Interior studio</p>
+            <h1>Reimagine the rooms you already have.</h1>
+            <p className="muted">
+              Upload a few photos, pick a direction, and render photoreal redesigns — keeping your
+              walls, windows and floors where they are.
+            </p>
             <a
               className="button primary block"
               href={
@@ -32,7 +41,7 @@ export function Studio({ roomId = "" }: { roomId?: string }) {
                   : "https://auth.aranlucas.workers.dev/account"
               }
             >
-              Continue
+              Sign in to continue
             </a>
             {!session.authConfigured && (
               <p className="hint">
@@ -43,8 +52,10 @@ export function Studio({ roomId = "" }: { roomId?: string }) {
         </main>
       ) : !room ? (
         <main className="center">
-          <div className="card">
+          <div className="card wide">
+            <p className="eyebrow">Start a project</p>
             <h1>New room</h1>
+            <p className="muted">Which space are you working on? You can rename it later.</p>
             <RoomTypes busy={busy} onPick={(type) => void create(type)} />
           </div>
         </main>

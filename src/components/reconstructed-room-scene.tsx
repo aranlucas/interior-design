@@ -112,7 +112,7 @@ export function ReconstructedRoomScene({
         cameraPoints.push(position, corners[i], corners[i], corners[(i + 1) % 4]);
     }
     const cameraGeometry = new THREE.BufferGeometry().setFromPoints(cameraPoints);
-    const cameraMaterial = new THREE.LineBasicMaterial({ color: "#0058a3" });
+    const cameraMaterial = new THREE.LineBasicMaterial({ color: "#a8502c" });
     scene.add(new THREE.LineSegments(cameraGeometry, cameraMaterial));
     geometry.computeBoundingSphere();
     const sphere = geometry.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 5);

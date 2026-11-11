@@ -353,7 +353,7 @@ export function AiRoomLayoutScene({
               o.userData.index === selection.index,
           )
         : undefined;
-    const helper = target ? new THREE.BoxHelper(target, "#0058a3") : null;
+    const helper = target ? new THREE.BoxHelper(target, "#a8502c") : null;
     if (helper) current.scene.add(helper);
     highlight.current = helper;
     current.render();

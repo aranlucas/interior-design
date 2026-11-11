@@ -1,5 +1,28 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ChevronDown, ImagePlus, X } from "lucide-react";
+import {
+  Armchair,
+  Bath,
+  BedDouble,
+  Building2,
+  ChevronDown,
+  CookingPot,
+  DoorOpen,
+  Dumbbell,
+  Flower2,
+  House,
+  ImagePlus,
+  Laptop,
+  Shapes,
+  Shirt,
+  Sofa,
+  Sun,
+  ToyBrick,
+  UtensilsCrossed,
+  WashingMachine,
+  Warehouse,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { accept, roomTypes } from "../lib/studio-client";
 
 export function Strip({
@@ -22,14 +45,38 @@ export function Strip({
   );
 }
 
+const roomIcons: Record<string, LucideIcon> = {
+  "Living room": Sofa,
+  Bedroom: BedDouble,
+  "Dining room": UtensilsCrossed,
+  Kitchen: CookingPot,
+  "Home office": Laptop,
+  Bathroom: Bath,
+  "Kids room": ToyBrick,
+  Hallway: DoorOpen,
+  "Laundry room": WashingMachine,
+  Closet: Shirt,
+  Gym: Dumbbell,
+  Attic: Warehouse,
+  Garden: Flower2,
+  Patio: Sun,
+  "House exterior": House,
+  Balcony: Building2,
+  Other: Shapes,
+};
+
 export function RoomTypes({ busy, onPick }: { busy: boolean; onPick: (type: string) => void }) {
   return (
     <div className="room-types">
-      {roomTypes.map((type) => (
-        <button key={type} className="button" disabled={busy} onClick={() => onPick(type)}>
-          {type}
-        </button>
-      ))}
+      {roomTypes.map((type) => {
+        const Icon = roomIcons[type] ?? Armchair;
+        return (
+          <button key={type} className="room-type" disabled={busy} onClick={() => onPick(type)}>
+            <Icon size={20} strokeWidth={1.5} aria-hidden />
+            {type}
+          </button>
+        );
+      })}
     </div>
   );
 }

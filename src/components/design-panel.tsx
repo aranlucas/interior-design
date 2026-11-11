@@ -1,4 +1,16 @@
-import { ChevronDown, LoaderCircle } from "lucide-react";
+import {
+  Brush,
+  ChevronDown,
+  ChevronRight,
+  Eraser,
+  LoaderCircle,
+  PaintRoller,
+  PenTool,
+  Sofa,
+  Sparkles,
+  Wand2,
+  type LucideIcon,
+} from "lucide-react";
 import { RoomSizeFields } from "./room-size-fields";
 import { ReferencesList } from "./references-list";
 import {
@@ -13,6 +25,19 @@ import {
 } from "../lib/studio-client";
 import type { StudioState } from "../hooks/use-studio";
 import { ImageSettings } from "./image-settings";
+import { qualityOptions, sizeOptions } from "../lib/image-settings";
+import type { Mode } from "../lib/studio-client";
+
+const modeIcons: Record<Mode, LucideIcon> = {
+  redesign: Wand2,
+  stage: Sofa,
+  paint: PaintRoller,
+  empty: Eraser,
+  sketch: PenTool,
+  freestyle: Sparkles,
+};
+
+const shortLabel = (label: string | undefined) => label?.split(" · ")[0] ?? "";
 export function DesignPanel({ state }: { state: StudioState }) {
   const {
     generating,
@@ -41,28 +66,46 @@ export function DesignPanel({ state }: { state: StudioState }) {
   const failed = state.job?.roomId === state.roomId && state.job.status === "failed";
   const freestyle = mode === "freestyle";
   const canGenerate = !!base || freestyle;
+  const sceneSummary = [
+    lighting[0].toUpperCase() + lighting.slice(1) + " light",
+    people !== "none" && people[0].toUpperCase() + people.slice(1),
+    measurements ? "Sized" : "Size unknown",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const outputSummary = [
+    shortLabel(qualityOptions.find((o) => o.value === state.imageSettings.quality)?.label),
+    freestyle
+      ? orientation[0].toUpperCase() + orientation.slice(1)
+      : shortLabel(sizeOptions.find((o) => o.value === state.imageSettings.size)?.label),
+  ].join(" · ");
   return (
     <aside className="panel" aria-label="Design brief and image settings">
       <div className="panel-body">
-        <div className="field">
-          <div className="field-head">
-            <span>Mode</span>
-          </div>
-          <div className="segmented full wrap" role="group" aria-label="Design mode">
-            {modes.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                aria-pressed={mode === m.id}
-                disabled={locked || (!base && m.id !== "freestyle")}
-                onClick={() => setMode(m.id)}
-              >
-                {m.label}
-              </button>
-            ))}
+        <section className="panel-section" aria-labelledby="mode-heading">
+          <h2 id="mode-heading" className="section-label">
+            Mode
+          </h2>
+          <div className="mode-grid" role="group" aria-label="Design mode">
+            {modes.map((m) => {
+              const Icon = modeIcons[m.id] ?? Brush;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="mode-card"
+                  aria-pressed={mode === m.id}
+                  disabled={locked || (!base && m.id !== "freestyle")}
+                  onClick={() => setMode(m.id)}
+                >
+                  <Icon size={16} strokeWidth={1.6} aria-hidden />
+                  {m.label}
+                </button>
+              );
+            })}
           </div>
           <p className="hint">{modes.find((m) => m.id === mode)?.hint}</p>
-        </div>
+        </section>
         <label className="field">
           <span>Style</span>
           <div className="select">
@@ -98,42 +141,6 @@ export function DesignPanel({ state }: { state: StudioState }) {
             </div>
           </div>
         )}
-        <div className="field-row">
-          <label className="field">
-            <span>
-              People <em>optional</em>
-            </span>
-            <div className="select">
-              <select value={people} onChange={(e) => setPeople(e.target.value as People)}>
-                {peopleChoices.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} />
-            </div>
-          </label>
-          <label className="field">
-            <span>Lighting</span>
-            <div className="select">
-              <select value={lighting} onChange={(e) => setLighting(e.target.value as Lighting)}>
-                {lightingChoices.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} />
-            </div>
-          </label>
-        </div>
-        <RoomSizeFields
-          key={state.roomId}
-          value={measurements}
-          onChange={setMeasurements}
-          disabled={locked}
-        />
         <label className="field">
           <span>Brief</span>
           <textarea
@@ -144,17 +151,74 @@ export function DesignPanel({ state }: { state: StudioState }) {
           />
         </label>
         <ReferencesList state={state} />
-        <ImageSettings
-          value={state.imageSettings}
-          onChange={state.setImageSettings}
-          model={session.imageModel}
-          sizeNote={
-            freestyle
-              ? "Output size follows the orientation above: 1536 × 1024 landscape, 1024 × 1536 portrait, or 1024 × 1024 square."
-              : undefined
-          }
-          disabled={generating}
-        />
+        <details className="disclosure">
+          <summary>
+            <span>Scene</span>
+            <span className="disclosure-summary">{sceneSummary}</span>
+            <ChevronRight size={14} aria-hidden />
+          </summary>
+          <div className="disclosure-body">
+            <div className="field-row">
+              <label className="field">
+                <span>
+                  People <em>optional</em>
+                </span>
+                <div className="select">
+                  <select value={people} onChange={(e) => setPeople(e.target.value as People)}>
+                    {peopleChoices.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} />
+                </div>
+              </label>
+              <label className="field">
+                <span>Lighting</span>
+                <div className="select">
+                  <select
+                    value={lighting}
+                    onChange={(e) => setLighting(e.target.value as Lighting)}
+                  >
+                    {lightingChoices.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} />
+                </div>
+              </label>
+            </div>
+            <RoomSizeFields
+              key={state.roomId}
+              value={measurements}
+              onChange={setMeasurements}
+              disabled={locked}
+            />
+          </div>
+        </details>
+        <details className="disclosure">
+          <summary>
+            <span>Output</span>
+            <span className="disclosure-summary">{outputSummary}</span>
+            <ChevronRight size={14} aria-hidden />
+          </summary>
+          <div className="disclosure-body">
+            <ImageSettings
+              value={state.imageSettings}
+              onChange={state.setImageSettings}
+              model={session.imageModel}
+              sizeNote={
+                freestyle
+                  ? "Output size follows the orientation above: 1536 × 1024 landscape, 1024 × 1536 portrait, or 1024 × 1024 square."
+                  : undefined
+              }
+              disabled={generating}
+            />
+          </div>
+        </details>
       </div>
       <div className="panel-foot">
         {saveStatus && (
@@ -168,10 +232,8 @@ export function DesignPanel({ state }: { state: StudioState }) {
             Refine this design
           </label>
         )}
-        <div className="field">
-          <div className="field-head">
-            <span>Variations</span>
-          </div>
+        <div className="dock-row">
+          <span className="dock-label">Variations</span>
           <div className="segmented" role="group" aria-label="Designs to generate">
             {([1, 2, 4, 8] as const).map((n) => (
               <button
@@ -185,20 +247,20 @@ export function DesignPanel({ state }: { state: StudioState }) {
               </button>
             ))}
           </div>
-          {count > 1 && (
-            <p className="room-help">
-              Variations run one at a time and may take longer. Each variation is billed separately,
-              including its input images.
-            </p>
-          )}
         </div>
+        {count > 1 && (
+          <p className="hint">
+            Variations run one at a time and may take longer. Each variation is billed separately,
+            including its input images.
+          </p>
+        )}
         {failed && !generating && (
           <p className="generation-error" role="status">
             {state.job?.error}
           </p>
         )}
         <button
-          className="button primary block"
+          className="button accent block generate"
           disabled={!canGenerate || locked || !session.generationConfigured}
           onClick={() => void generate()}
         >
@@ -208,16 +270,19 @@ export function DesignPanel({ state }: { state: StudioState }) {
             </>
           ) : failed ? (
             "Try again"
-          ) : refine ? (
-            "Refine"
-          ) : count > 1 ? (
-            `Generate ${count}`
-          ) : freestyle ? (
-            "Generate freestyle"
-          ) : state.shown === "room" ? (
-            "Generate from photo"
           ) : (
-            "Generate image"
+            <>
+              <Sparkles size={16} aria-hidden />
+              {refine
+                ? "Refine"
+                : count > 1
+                  ? `Generate ${count}`
+                  : freestyle
+                    ? "Generate freestyle"
+                    : state.shown === "room"
+                      ? "Generate from photo"
+                      : "Generate image"}
+            </>
           )}
         </button>
         {state.shown === "room" && base && (
