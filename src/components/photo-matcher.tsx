@@ -139,7 +139,7 @@ export function PhotoMatcher({
       <div className="room-build-actions">
         <span className="room-help" role="status">
           {points.length} pairs matched
-          {pending ? " · Now click the same detail in the second photo" : ""}
+          {pending ? ". Now click the same detail in the second photo" : ""}
         </span>
         <button
           className="button ghost"

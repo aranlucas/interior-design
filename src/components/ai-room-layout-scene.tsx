@@ -353,7 +353,7 @@ export function AiRoomLayoutScene({
               o.userData.index === selection.index,
           )
         : undefined;
-    const helper = target ? new THREE.BoxHelper(target, "#0058a3") : null;
+    const helper = target ? new THREE.BoxHelper(target, "#c23a2b") : null;
     if (helper) current.scene.add(helper);
     highlight.current = helper;
     current.render();
@@ -489,8 +489,8 @@ export function AiRoomLayoutScene({
             </div>
             <span className="room-orbit-hint">
               {editing
-                ? "Click a box to select · Drag it to move"
-                : "Drag to orbit · Scroll to zoom · Proportions are estimated"}
+                ? "Click a box to select it, then drag to move"
+                : "Drag to orbit, scroll to zoom. Proportions are estimated."}
             </span>
           </>
         )}
@@ -605,7 +605,7 @@ export function AiRoomLayoutScene({
                     available.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
-                        {p.dimensions ? ` · ${p.dimensions}` : " · size unknown"}
+                        {p.dimensions ? `, ${p.dimensions}` : ", size unknown"}
                       </option>
                     ))
                   ) : (
@@ -627,7 +627,7 @@ export function AiRoomLayoutScene({
                 >
                   {draft.walls.map((wall, i) => (
                     <option key={wall.edgeIndex} value={i}>
-                      {wall.label} · now {wallLength(draft, wall.edgeIndex).toFixed(2)} m
+                      {wall.label}, now {wallLength(draft, wall.edgeIndex).toFixed(2)} m
                     </option>
                   ))}
                 </select>
@@ -688,7 +688,7 @@ export function AiRoomLayoutScene({
         {captured && (
           <figure>
             <img src={captured.image} alt="Captured 3D view for image generation" />
-            <figcaption>Captured view · AI-estimated geometry</figcaption>
+            <figcaption>Captured view with AI-estimated geometry</figcaption>
           </figure>
         )}
         <div className="room-build-actions">

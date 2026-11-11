@@ -144,9 +144,9 @@ export default function RoomPreview({ state }: { state: StudioState }) {
           {busy
             ? job?.stage || "Starting…"
             : result?.kind === "ai-layout"
-              ? `AI-estimated layout · ${result.sourcePhotoIds?.length ?? result.photoIds.length} source photos · ${result.fixtureCount ?? 0} fixtures`
+              ? `AI-estimated layout from ${result.sourcePhotoIds?.length ?? result.photoIds.length} source photos, ${result.fixtureCount ?? 0} fixtures`
               : result
-                ? `${result.registeredIds.length} of ${result.photoIds.length} photos aligned · ${result.pointCount.toLocaleString()} recovered points`
+                ? `${result.registeredIds.length} of ${result.photoIds.length} photos aligned, ${result.pointCount.toLocaleString()} recovered points`
                 : mode === "ai-layout"
                   ? state.photos.length
                     ? "Use several views of the same room for a more complete estimate."

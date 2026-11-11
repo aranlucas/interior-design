@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { assetUrl } from "../lib/types";
 import { stepPhoto } from "../lib/photo-nav";
+import { modes } from "../lib/studio-client";
 import { Filmstrips } from "./filmstrips";
 import { DesignEditor } from "./design-editor";
 import { CompareVideo } from "./compare-video";
@@ -37,6 +38,21 @@ function DesignPrompt({ promptKey }: { promptKey: string }) {
     </details>
   );
 }
+
+const modeLabel = (mode?: string) =>
+  mode === "final"
+    ? "Final render"
+    : (modes.find((m) => m.id === mode)?.label ??
+      (mode ? mode[0].toUpperCase() + mode.slice(1) : "Redesign"));
+const qualityLabel = (quality: string) =>
+  quality === "xhigh" ? "Extra high" : quality[0].toUpperCase() + quality.slice(1);
+const formatCreated = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 export function StudioStage({ state }: { state: StudioState }) {
   const {
     generating,
@@ -106,7 +122,7 @@ export function StudioStage({ state }: { state: StudioState }) {
     <section className="stage">
       <div className="stage-bar">
         {photos.length > 0 || room.designs.length > 0 ? (
-          <div className="segmented" role="group" aria-label="View">
+          <div className="tabs" role="group" aria-label="View">
             {(["photo", "room", ...(design ? (["design", "compare"] as const) : [])] as const).map(
               (v) => (
                 <button
@@ -127,64 +143,16 @@ export function StudioStage({ state }: { state: StudioState }) {
             )}
           </div>
         ) : (
-          <span className="muted small">
+          <span className="stage-count">
             {photos.length
               ? `${photos.length} photo${photos.length > 1 ? "s" : ""}`
               : "No photos yet"}
           </span>
         )}
-        {active && (
-          <span className="stage-actions">
-            <button
-              className="icon-button"
-              aria-label="Brush edit this design"
-              title="Brush edit"
-              disabled={locked}
-              onClick={() => setEditing(true)}
-            >
-              <Brush size={16} />
-            </button>
-            {active.mode !== "final" && active.generation?.quality !== "max" && (
-              <button
-                className="icon-button"
-                aria-label="Render final at maximum detail"
-                title="Render final · max quality, same design"
-                disabled={locked || !state.session?.generationConfigured}
-                onClick={() => void state.renderFinal(active)}
-              >
-                <Sparkles size={16} />
-              </button>
-            )}
-            {comparisonKey && (
-              <button
-                className="icon-button"
-                aria-label="Export before/after video"
-                title="Before/after video"
-                disabled={locked}
-                onClick={() => setVideo(true)}
-              >
-                <Clapperboard size={16} />
-              </button>
-            )}
-            <button
-              className="icon-button"
-              aria-pressed={!!active.starred}
-              aria-label={active.starred ? `Unsave ${active.mode || "this"} design` : "Save design"}
-              title={active.starred ? "Unsave design" : "Save design"}
-              disabled={locked}
-              onClick={() => void toggleStarred(active.id)}
-            >
-              <Star size={16} className={active.starred ? "star-on" : undefined} />
-            </button>
-            <a
-              className="icon-button"
-              href={assetUrl(active.key)}
-              download={`${room.name}-roomform.png`}
-              aria-label="Download design"
-              title="Download"
-            >
-              <Download size={16} />
-            </a>
+        {(photos.length > 0 || room.designs.length > 0) && (
+          <span className="stage-count hide-sm">
+            {photos.length} photo{photos.length === 1 ? "" : "s"}, {room.designs.length} design
+            {room.designs.length === 1 ? "" : "s"}
           </span>
         )}
       </div>
@@ -252,8 +220,62 @@ export function StudioStage({ state }: { state: StudioState }) {
             <button className="button" disabled={locked} onClick={() => input.current?.click()}>
               Choose photos
             </button>
-            <small className="muted">JPG, PNG or WebP · Up to 25 MB each</small>
+            <small className="muted">JPG, PNG or WebP, up to 25 MB each</small>
           </div>
+        )}
+        {active && (
+          <span className="stage-actions" role="toolbar" aria-label="Design actions">
+            <button
+              className="icon-button"
+              aria-label="Brush edit this design"
+              title="Brush edit"
+              disabled={locked}
+              onClick={() => setEditing(true)}
+            >
+              <Brush size={16} />
+            </button>
+            {active.mode !== "final" && active.generation?.quality !== "max" && (
+              <button
+                className="icon-button"
+                aria-label="Render final at maximum detail"
+                title="Render final · max quality, same design"
+                disabled={locked || !state.session?.generationConfigured}
+                onClick={() => void state.renderFinal(active)}
+              >
+                <Sparkles size={16} />
+              </button>
+            )}
+            {comparisonKey && (
+              <button
+                className="icon-button"
+                aria-label="Export before/after video"
+                title="Before/after video"
+                disabled={locked}
+                onClick={() => setVideo(true)}
+              >
+                <Clapperboard size={16} />
+              </button>
+            )}
+            <button
+              className="icon-button"
+              aria-pressed={!!active.starred}
+              aria-label={active.starred ? `Unsave ${active.mode || "this"} design` : "Save design"}
+              title={active.starred ? "Unsave design" : "Save design"}
+              disabled={locked}
+              onClick={() => void toggleStarred(active.id)}
+            >
+              <Star size={16} className={active.starred ? "star-on" : undefined} />
+            </button>
+            <a
+              className="icon-button"
+              href={assetUrl(active.key)}
+              download={`${room.name}-roomform.png`}
+              aria-label="Download design"
+              title="Download"
+            >
+              <Download size={16} />
+            </a>
+          </span>
         )}
         {generating && (
           <div className="overlay" role="status" aria-live="polite">
@@ -267,48 +289,15 @@ export function StudioStage({ state }: { state: StudioState }) {
           </div>
         )}
         {shown === "design" && active?.mode === "freestyle" && (
-          <span className="tag right">Freestyle · No input photo</span>
+          <span className="tag right">Freestyle, no input photo</span>
         )}
         {shown === "design" && active?.inferred && (
-          <span className="tag right">AI finish · Includes inferred areas</span>
+          <span className="tag right">AI finish with inferred areas</span>
         )}
         {shown === "design" && active?.guide && (
-          <span className="tag right">3D-guided · Estimated geometry</span>
+          <span className="tag right">Guided by 3D layout, geometry estimated</span>
         )}
       </div>
-      {active?.guide && (
-        <details className="design-guide-evidence">
-          <summary>3D guide and source evidence</summary>
-          <div>
-            <a href={assetUrl(active.guide.key)} target="_blank" rel="noreferrer">
-              <img src={assetUrl(active.guide.key)} alt="Saved 3D camera guide" />
-            </a>
-            <p>
-              Guided by AI layout {active.guide.resultId}. Geometry and unseen areas are estimates.{" "}
-              {active.guide.photoIds.length} original photos supplied appearance evidence;{" "}
-              {active.guide.assetIds.length} selected references. Style: {active.guide.style}.
-            </p>
-            <p>
-              Brief:{" "}
-              {active.prompt || "Create a cohesive, comfortable, thoughtfully furnished interior."}
-            </p>
-            <a
-              className="link-button"
-              href={assetUrl(active.guide.layoutKey)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Inspect saved architectural constraints
-            </a>
-          </div>
-        </details>
-      )}
-      {active?.plan && (
-        <details className="plan">
-          <summary>Layout plan</summary>
-          <p>{active.plan}</p>
-        </details>
-      )}
       {editing && active && (
         <DesignEditor state={state} design={active} onClose={() => setEditing(false)} />
       )}
@@ -320,27 +309,87 @@ export function StudioStage({ state }: { state: StudioState }) {
           onClose={() => setVideo(false)}
         />
       )}
-      {active?.generation && (
-        <details className="design-details">
-          <summary>
-            {active.generation.quality === "auto"
-              ? "Auto quality"
-              : `${active.generation.quality === "xhigh" ? "Extra high" : active.generation.quality[0].toUpperCase() + active.generation.quality.slice(1)} quality`}
-            {" · "}
-            {active.generation.size.replace("x", " × ")}
-            {" · PNG"}
-          </summary>
-          <p>{active.generation.model}</p>
-          {active.generation.outputTokens !== undefined && (
-            <p>
-              {active.generation.outputTokens.toLocaleString()} output tokens
-              {active.generation.outputCostUsd !== undefined &&
-                ` · $${active.generation.outputCostUsd.toFixed(4)} image output`}
-              . Input tokens are billed separately.
-            </p>
+      {active && (
+        <dl className="title-block" aria-label="Design details">
+          <div>
+            <dt>Mode</dt>
+            <dd>{modeLabel(active.mode)}</dd>
+          </div>
+          {active.generation && (
+            <>
+              <div>
+                <dt>Quality</dt>
+                <dd>{qualityLabel(active.generation.quality)}</dd>
+              </div>
+              <div>
+                <dt>Size</dt>
+                <dd className="num">{active.generation.size.replace("x", " × ")}</dd>
+              </div>
+            </>
           )}
-          {active.promptKey && <DesignPrompt key={active.promptKey} promptKey={active.promptKey} />}
-        </details>
+          <div>
+            <dt>Created</dt>
+            <dd className="num">
+              <time dateTime={active.createdAt}>{formatCreated(active.createdAt)}</time>
+            </dd>
+          </div>
+        </dl>
+      )}
+      {(active?.guide || active?.plan || active?.generation) && (
+        <div className="stage-meta">
+          {active?.guide && (
+            <details className="design-guide-evidence">
+              <summary>3D guide and source evidence</summary>
+              <div>
+                <a href={assetUrl(active.guide.key)} target="_blank" rel="noreferrer">
+                  <img src={assetUrl(active.guide.key)} alt="Saved 3D camera guide" />
+                </a>
+                <p>
+                  Guided by AI layout {active.guide.resultId}. Geometry and unseen areas are
+                  estimates. {active.guide.photoIds.length} original photos supplied appearance
+                  evidence; {active.guide.assetIds.length} selected references. Style:{" "}
+                  {active.guide.style}.
+                </p>
+                <p>
+                  Brief:{" "}
+                  {active.prompt ||
+                    "Create a cohesive, comfortable, thoughtfully furnished interior."}
+                </p>
+                <a
+                  className="link-button"
+                  href={assetUrl(active.guide.layoutKey)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Inspect saved architectural constraints
+                </a>
+              </div>
+            </details>
+          )}
+          {active?.plan && (
+            <details className="plan">
+              <summary>Layout plan</summary>
+              <p>{active.plan}</p>
+            </details>
+          )}
+          {active?.generation && (
+            <details className="design-details">
+              <summary>Model and cost</summary>
+              <p>{active.generation.model}</p>
+              {active.generation.outputTokens !== undefined && (
+                <p>
+                  {active.generation.outputTokens.toLocaleString()} output tokens
+                  {active.generation.outputCostUsd !== undefined &&
+                    `, $${active.generation.outputCostUsd.toFixed(4)} image output`}
+                  . Input tokens are billed separately.
+                </p>
+              )}
+              {active.promptKey && (
+                <DesignPrompt key={active.promptKey} promptKey={active.promptKey} />
+              )}
+            </details>
+          )}
+        </div>
       )}
       <Filmstrips state={state} />
     </section>
