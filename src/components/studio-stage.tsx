@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { assetUrl } from "../lib/types";
 import { stepPhoto } from "../lib/photo-nav";
+import { modes } from "../lib/studio-client";
 import { Filmstrips } from "./filmstrips";
 import { DesignEditor } from "./design-editor";
 import { CompareVideo } from "./compare-video";
@@ -37,6 +38,21 @@ function DesignPrompt({ promptKey }: { promptKey: string }) {
     </details>
   );
 }
+
+const modeLabel = (mode?: string) =>
+  mode === "final"
+    ? "Final render"
+    : (modes.find((m) => m.id === mode)?.label ??
+      (mode ? mode[0].toUpperCase() + mode.slice(1) : "Redesign"));
+const qualityLabel = (quality: string) =>
+  quality === "xhigh" ? "Extra high" : quality[0].toUpperCase() + quality.slice(1);
+const formatCreated = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 export function StudioStage({ state }: { state: StudioState }) {
   const {
     generating,
@@ -135,7 +151,7 @@ export function StudioStage({ state }: { state: StudioState }) {
         )}
         {(photos.length > 0 || room.designs.length > 0) && (
           <span className="stage-count hide-sm">
-            {photos.length} photo{photos.length === 1 ? "" : "s"} · {room.designs.length} design
+            {photos.length} photo{photos.length === 1 ? "" : "s"}, {room.designs.length} design
             {room.designs.length === 1 ? "" : "s"}
           </span>
         )}
@@ -204,7 +220,7 @@ export function StudioStage({ state }: { state: StudioState }) {
             <button className="button" disabled={locked} onClick={() => input.current?.click()}>
               Choose photos
             </button>
-            <small className="muted">JPG, PNG or WebP · Up to 25 MB each</small>
+            <small className="muted">JPG, PNG or WebP, up to 25 MB each</small>
           </div>
         )}
         {active && (
@@ -273,13 +289,13 @@ export function StudioStage({ state }: { state: StudioState }) {
           </div>
         )}
         {shown === "design" && active?.mode === "freestyle" && (
-          <span className="tag right">Freestyle · No input photo</span>
+          <span className="tag right">Freestyle, no input photo</span>
         )}
         {shown === "design" && active?.inferred && (
-          <span className="tag right">AI finish · Includes inferred areas</span>
+          <span className="tag right">AI finish with inferred areas</span>
         )}
         {shown === "design" && active?.guide && (
-          <span className="tag right">3D-guided · Estimated geometry</span>
+          <span className="tag right">Guided by 3D layout, geometry estimated</span>
         )}
       </div>
       {editing && active && (
@@ -292,6 +308,32 @@ export function StudioStage({ state }: { state: StudioState }) {
           roomName={room.name}
           onClose={() => setVideo(false)}
         />
+      )}
+      {active && (
+        <dl className="title-block" aria-label="Design details">
+          <div>
+            <dt>Mode</dt>
+            <dd>{modeLabel(active.mode)}</dd>
+          </div>
+          {active.generation && (
+            <>
+              <div>
+                <dt>Quality</dt>
+                <dd>{qualityLabel(active.generation.quality)}</dd>
+              </div>
+              <div>
+                <dt>Size</dt>
+                <dd className="num">{active.generation.size.replace("x", " × ")}</dd>
+              </div>
+            </>
+          )}
+          <div>
+            <dt>Created</dt>
+            <dd className="num">
+              <time dateTime={active.createdAt}>{formatCreated(active.createdAt)}</time>
+            </dd>
+          </div>
+        </dl>
       )}
       {(active?.guide || active?.plan || active?.generation) && (
         <div className="stage-meta">
@@ -332,20 +374,13 @@ export function StudioStage({ state }: { state: StudioState }) {
           )}
           {active?.generation && (
             <details className="design-details">
-              <summary>
-                {active.generation.quality === "auto"
-                  ? "Auto quality"
-                  : `${active.generation.quality === "xhigh" ? "Extra high" : active.generation.quality[0].toUpperCase() + active.generation.quality.slice(1)} quality`}
-                {" · "}
-                {active.generation.size.replace("x", " × ")}
-                {" · PNG"}
-              </summary>
+              <summary>Model and cost</summary>
               <p>{active.generation.model}</p>
               {active.generation.outputTokens !== undefined && (
                 <p>
                   {active.generation.outputTokens.toLocaleString()} output tokens
                   {active.generation.outputCostUsd !== undefined &&
-                    ` · $${active.generation.outputCostUsd.toFixed(4)} image output`}
+                    `, $${active.generation.outputCostUsd.toFixed(4)} image output`}
                   . Input tokens are billed separately.
                 </p>
               )}

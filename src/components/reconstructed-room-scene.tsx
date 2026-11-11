@@ -112,7 +112,7 @@ export function ReconstructedRoomScene({
         cameraPoints.push(position, corners[i], corners[i], corners[(i + 1) % 4]);
     }
     const cameraGeometry = new THREE.BufferGeometry().setFromPoints(cameraPoints);
-    const cameraMaterial = new THREE.LineBasicMaterial({ color: "#a8502c" });
+    const cameraMaterial = new THREE.LineBasicMaterial({ color: "#c23a2b" });
     scene.add(new THREE.LineSegments(cameraGeometry, cameraMaterial));
     geometry.computeBoundingSphere();
     const sphere = geometry.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 5);
@@ -218,7 +218,7 @@ export function ReconstructedRoomScene({
               </button>
             </div>
             <span className="room-orbit-hint">
-              Drag to orbit · Scroll or pinch to zoom · Blue outlines show cameras
+              Drag to orbit, scroll or pinch to zoom. Red outlines show cameras.
             </span>
           </>
         )}

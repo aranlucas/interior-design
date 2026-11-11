@@ -68,17 +68,17 @@ export function DesignPanel({ state }: { state: StudioState }) {
   const canGenerate = !!base || freestyle;
   const sceneSummary = [
     lighting[0].toUpperCase() + lighting.slice(1) + " light",
-    people !== "none" && people[0].toUpperCase() + people.slice(1),
-    measurements ? "Sized" : "Size unknown",
+    people !== "none" && people,
+    measurements ? "sized" : "size unknown",
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(", ");
   const outputSummary = [
     shortLabel(qualityOptions.find((o) => o.value === state.imageSettings.quality)?.label),
     freestyle
       ? orientation[0].toUpperCase() + orientation.slice(1)
       : shortLabel(sizeOptions.find((o) => o.value === state.imageSettings.size)?.label),
-  ].join(" · ");
+  ].join(", ");
   return (
     <aside className="panel" aria-label="Design brief and image settings">
       <div className="panel-body">
