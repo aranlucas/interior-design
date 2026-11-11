@@ -249,7 +249,7 @@ it("ignores the base photo in freestyle mode", async () => {
   s.releaseGeneration(owner);
 });
 
-it("keeps all variations without duplicating request-level token charges on each design", async () => {
+it("requests and saves variations one at a time with each response’s actual token charge", async () => {
   const s = await import("./storage.server");
   const { startGeneration } = await import("./generation.server");
   const owner = "variations-settings";
@@ -266,10 +266,12 @@ it("keeps all variations without duplicating request-level token charges on each
       createdAt: new Date().toISOString(),
     },
   ]);
-  vi.mocked(generateImage).mockResolvedValueOnce({
-    images: Array.from({ length: 4 }, (_, i) => generatedImage([i])),
-    usage: { outputTokens: 52000 },
-  } as never);
+  const callsBefore = vi.mocked(generateImage).mock.calls.length;
+  for (let i = 0; i < 4; i++)
+    vi.mocked(generateImage).mockResolvedValueOnce({
+      image: generatedImage([i]),
+      usage: { outputTokens: 13000 },
+    } as never);
   const imageSettings = { quality: "high", size: "photo" } as const;
   const { jobId } = await startGeneration(owner, {
     roomId,
@@ -287,14 +289,17 @@ it("keeps all variations without duplicating request-level token charges on each
   expect(room.designs).toHaveLength(4);
   expect(new Set(room.designs.map((design) => design.key)).size).toBe(4);
   expect(vi.mocked(generateImage).mock.calls.at(-1)![0]).toMatchObject({
-    n: 4,
+    n: 1,
     size: "1024x1024",
     providerOptions: { openai: { quality: "high" } },
   });
+  expect(vi.mocked(generateImage).mock.calls.length - callsBefore).toBe(4);
+  for (const [options] of vi.mocked(generateImage).mock.calls.slice(callsBefore))
+    expect(options.n).toBe(1);
   for (const [index, design] of room.designs.entries()) {
     expect(design.generation).toMatchObject({ quality: "high", size: "1024x1024" });
-    expect(design.generation?.outputTokens).toBeUndefined();
-    expect(design.generation?.outputCostUsd).toBeUndefined();
+    expect(design.generation?.outputTokens).toBe(13000);
+    expect(design.generation?.outputCostUsd).toBe(0.39);
     expect(await s.load(design.key)).toEqual(new Uint8Array([index]));
   }
 });

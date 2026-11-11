@@ -115,3 +115,77 @@ describe("AI layout geometry", () => {
     model.dispose();
   });
 });
+
+// Rotating a box changes its occupied floor area even when its center stays inside.
+it("rejects a rotated fixture crossing a wall and a fixture above the ceiling", () => {
+  const layout = exampleAiRoomLayout();
+  layout.fixtures[0] = { ...layout.fixtures[0], x: 0.5, width: 1, depth: 2, yawDegrees: 90 };
+  expect(() => validateAiRoomLayout(layout, 1)).toThrow("outside the room");
+  layout.fixtures[0].x = 2;
+  expect(validateAiRoomLayout(layout, 1)).toEqual(layout);
+  layout.fixtures[0].bottom = 2;
+  expect(() => validateAiRoomLayout(layout, 1)).toThrow("ceiling");
+});
+
+it("rejects overlapping wall openings while allowing vertically separated ones", () => {
+  const layout = exampleAiRoomLayout();
+  const window = layout.walls[0].openings[0];
+  layout.walls[0].openings.push({ ...window, center: 0.6 });
+  expect(() => validateAiRoomLayout(layout, 1)).toThrow("overlap");
+  layout.walls[0].openings[1] = { ...window, bottom: 0, height: 0.8 };
+  expect(validateAiRoomLayout(layout, 1)).toEqual(layout);
+});
+
+it("rejects furniture spanning the missing corner of an L-shaped footprint", () => {
+  const layout = exampleAiRoomLayout();
+  layout.footprint = [
+    { x: 0, z: 0 },
+    { x: 4, z: 0 },
+    { x: 4, z: 2 },
+    { x: 2, z: 2 },
+    { x: 2, z: 4 },
+    { x: 0, z: 4 },
+  ];
+  layout.walls = layout.footprint.map((_, edgeIndex) => ({
+    ...layout.walls[1],
+    edgeIndex,
+    openings: [],
+  }));
+  layout.fixtures[0] = { ...layout.fixtures[0], x: 1.8, z: 1.8, width: 2, depth: 2 };
+  expect(() => validateAiRoomLayout(layout, 1)).toThrow("outside the room");
+});
+
+it("keeps detailed furniture inside its declared box and disposes material textures", () => {
+  const layout = exampleAiRoomLayout();
+  layout.floorMaterial = "wood";
+  layout.fixtures = ["sofa", "bed", "table"].map((kind) => ({
+    ...layout.fixtures[0],
+    kind: kind as "sofa" | "bed" | "table",
+    width: 2,
+    depth: 1.5,
+    height: 1,
+  }));
+  const model = createAiRoomGroup(layout, true, true);
+  for (const fixture of model.group.children.filter((o) =>
+    ["sofa", "bed", "table"].includes(o.userData.kind),
+  )) {
+    const bounds = new THREE.Box3().setFromObject(fixture);
+    expect(bounds.min.x).toBeGreaterThanOrEqual(1 - 1e-6);
+    expect(bounds.max.x).toBeLessThanOrEqual(3 + 1e-6);
+    expect(bounds.min.y).toBeGreaterThanOrEqual(0 - 1e-6);
+    expect(bounds.max.y).toBeLessThanOrEqual(1 + 1e-6);
+    expect(bounds.min.z).toBeGreaterThanOrEqual(2.25 - 1e-6);
+    expect(bounds.max.z).toBeLessThanOrEqual(3.75 + 1e-6);
+  }
+  const floor = model.group.children.find((o) => o.userData.kind === "floor") as THREE.Mesh<
+    THREE.BufferGeometry,
+    THREE.MeshStandardMaterial
+  >;
+  expect(floor.material.map).toBeInstanceOf(THREE.DataTexture);
+  let disposed = false;
+  floor.material.map!.addEventListener("dispose", () => {
+    disposed = true;
+  });
+  model.dispose();
+  expect(disposed).toBe(true);
+});

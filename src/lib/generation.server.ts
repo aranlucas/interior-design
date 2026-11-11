@@ -2,6 +2,7 @@ import { ENV } from "varlock/env";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateImage } from "ai";
 import {
+  assertImageBudget,
   createJob,
   finishJob,
   rooms,
@@ -19,8 +20,10 @@ import { outputSize, orientationSize, pngDimensions } from "./image-size";
 import { analyzeLayout } from "./layout.server";
 import { assertCurrentGuide, prepareRoomGuide } from "./room-guide.server";
 import { defaultImageModel, defaultImageSettings, outputCost } from "./image-settings";
+import { acquireHeavyWork } from "./heavy-work.server";
 import { generationError, retryImageRequest } from "./image-errors.server";
 
+import type { Design, Asset } from "./types";
 import type { z } from "zod";
 function mediaType(key: string) {
   return key.endsWith(".png") ? "image/png" : key.endsWith(".webp") ? "image/webp" : "image/jpeg";
@@ -53,23 +56,33 @@ export async function startGeneration(owner: string, raw: z.input<typeof designI
     ? room.designs.find((d) => d.id === input.previousDesignId)
     : undefined;
   if (input.previousDesignId && !previous) throw new Error("Previous design not found.");
-  const guide = input.roomGuide ? await prepareRoomGuide(owner, room, input.roomGuide) : undefined;
-  const originalPhotos = guide ? guide.photos : base ? [base, ...context] : [];
-  const ordered = [...originalPhotos, ...refs];
-  const images = await Promise.all(
-    ordered.map(async (a) => {
-      const b = await load(a.key);
-      if (!b) throw new Error("A reference image is missing. Please upload it again.");
-      return b;
-    }),
-  );
-  if (guide) images.unshift(guide.image);
   const count = input.count ?? 1;
-  const ttl = count >= 8 ? 600_000 : count > 1 ? 480_000 : 300_000;
-  if (!claimGeneration(u.sub, ttl))
-    throw new Error("A design is already being generated. Please wait for it to finish.");
+  const ttl = 120_000 + count * 300_000;
+  let releaseWork = () => {};
+  let guide: Awaited<ReturnType<typeof prepareRoomGuide>> | undefined;
+  let originalPhotos: Asset[];
+  let images: Uint8Array[];
   let job;
+  let claimed = false;
   try {
+    if (!claimGeneration(u.sub, ttl))
+      throw new Error("A design is already being generated. Please wait for it to finish.");
+    claimed = true;
+    releaseWork = acquireHeavyWork();
+    guide = input.roomGuide ? await prepareRoomGuide(owner, room, input.roomGuide) : undefined;
+    originalPhotos = guide ? guide.photos : base ? [base, ...context] : [];
+    const ordered = [...originalPhotos, ...refs];
+    assertImageBudget(
+      [...ordered.map((a) => a.key), ...(previous ? [previous.key] : [])],
+      guide?.image.byteLength,
+    );
+    images = [];
+    for (const asset of ordered) {
+      const bytes = await load(asset.key);
+      if (!bytes) throw new Error("A reference image is missing. Please upload it again.");
+      images.push(bytes);
+    }
+    if (guide) images.unshift(guide.image);
     await mutateRooms(u.sub, (latest) => {
       const target = latest.find((r) => r.id === room.id);
       if (!target) throw new Error("Room was removed before generation started.");
@@ -81,135 +94,145 @@ export async function startGeneration(owner: string, raw: z.input<typeof designI
     });
     job = createJob(u.sub, room.id);
   } catch (error) {
-    releaseGeneration(u.sub);
+    try {
+      if (claimed) releaseGeneration(u.sub);
+    } finally {
+      releaseWork();
+    }
     throw error;
   }
-  void settleGeneration(u.sub, job.id, async () => {
-    const current = (await rooms(u.sub)).find((r) => r.id === room.id);
-    if (!current) throw new Error("Room was removed before generation started.");
-    if (input.roomGuide) assertCurrentGuide(current, input.roomGuide.resultId);
-    const plan =
-      guide || !base || input.mode === "freestyle" || isOutdoor(room.type)
-        ? null
-        : await analyzeLayout({
+  void settleGeneration(
+    u.sub,
+    job.id,
+    async () => {
+      const current = (await rooms(u.sub)).find((r) => r.id === room.id);
+      if (!current) throw new Error("Room was removed before generation started.");
+      if (input.roomGuide) assertCurrentGuide(current, input.roomGuide.resultId);
+      const plan =
+        guide || !base || input.mode === "freestyle" || isOutdoor(room.type)
+          ? null
+          : await analyzeLayout({
+              mode: input.mode,
+              baseImage: images[0],
+              mediaType: mediaType(base.key),
+              roomType: room.type === "Other" ? "room" : room.type.toLowerCase(),
+              references: refs.map((r) => ({
+                name: r.name,
+                kind: r.kind,
+                dimensions: r.dimensions,
+              })),
+              measurements: input.measurements,
+              style: input.style,
+              brief: input.notes,
+            });
+      let prompt = buildPrompt(
+        room.type,
+        input,
+        refs,
+        originalPhotos.length + (guide ? 1 : 0),
+        plan || undefined,
+        guide?.constraints,
+      );
+      if (previous) {
+        const bytes = await load(previous.key);
+        if (!bytes) throw new Error("The previous design image is missing. Choose another design.");
+        images.push(bytes);
+        prompt += guide
+          ? " The final image is the previous design. Preserve its furniture identities, quantities, materials, physical proportions, and relative placement unless the client brief explicitly requests a change. Carry those choices into the chosen camera rather than copying the previous image's screen coordinates. Image 1 remains the chosen camera/layout guide and the original room photos remain appearance evidence. In empty mode, remove movable furnishings regardless of the previous design."
+          : base
+            ? " The final image is the previous design. Make only the changes requested in the client brief, preserving its furniture identities, quantities, materials, and placement unless a change is requested or required by the selected task. Keep image 1 as the architectural and camera authority; preserve its crop, viewpoint, and perspective."
+            : "";
+      }
+      if (input.fillGaps) {
+        prompt +=
+          " This is an optional AI finish of a partial photo reconstruction. Keep architecture and contents visible in the original photos consistent across views. Fill visual gaps conservatively without claiming inferred areas were observed or measured. This output does not add measured geometry to the 3D reconstruction.";
+      }
+      const provider = createOpenAI({ apiKey: ENV.OPENAI_API_KEY });
+      const size =
+        input.mode === "freestyle"
+          ? orientationSize(input.orientation)
+          : guide || settings.size === "photo"
+            ? guide || base
+              ? outputSize(images[0])
+              : previous
+                ? outputSize(images[images.length - 1])
+                : orientationSize(input.orientation)
+            : settings.size;
+      const deadline = AbortSignal.timeout(ttl - 30_000);
+      const designs: Design[] = [];
+      try {
+        for (let index = 0; index < count; index++) {
+          const signal = AbortSignal.any([deadline, AbortSignal.timeout(270_000)]);
+          // Scope each response to one iteration and save it before requesting the next.
+          const result = await retryImageRequest(
+            () =>
+              generateImage({
+                model: provider.image(model),
+                prompt: { text: prompt, images },
+                size,
+                providerOptions: { openai: { quality: settings.quality, outputFormat: "png" } },
+                n: 1,
+                maxRetries: 0,
+                abortSignal: signal,
+              }),
+            signal,
+          );
+          const createdAt = new Date().toISOString();
+          const id = crypto.randomUUID();
+          const design = {
+            id,
+            key: `${ownerPrefix(u.sub)}${room.id}/${id}.png`,
+            prompt: input.notes,
+            createdAt,
+            baseId: base?.id ?? "",
+            plan: plan || undefined,
             mode: input.mode,
-            baseImage: images[0],
-            mediaType: mediaType(base.key),
-            roomType: room.type === "Other" ? "room" : room.type.toLowerCase(),
-            references: refs.map((r) => ({ name: r.name, kind: r.kind, dimensions: r.dimensions })),
-            measurements: input.measurements,
-            style: input.style,
-            brief: input.notes,
-          });
-    let prompt = buildPrompt(
-      room.type,
-      input,
-      refs,
-      originalPhotos.length + (guide ? 1 : 0),
-      plan || undefined,
-      guide?.constraints,
-    );
-    if (previous) {
-      const bytes = await load(previous.key);
-      if (!bytes) throw new Error("The previous design image is missing. Choose another design.");
-      images.push(bytes);
-      prompt += guide
-        ? " The final image is the previous design. Preserve its furniture identities, quantities, materials, physical proportions, and relative placement unless the client brief explicitly requests a change. Carry those choices into the chosen camera rather than copying the previous image's screen coordinates. Image 1 remains the chosen camera/layout guide and the original room photos remain appearance evidence. In empty mode, remove movable furnishings regardless of the previous design."
-        : base
-          ? " The final image is the previous design. Make only the changes requested in the client brief, preserving its furniture identities, quantities, materials, and placement unless a change is requested or required by the selected task. Keep image 1 as the architectural and camera authority; preserve its crop, viewpoint, and perspective."
-          : "";
-    }
-    if (input.fillGaps) {
-      prompt +=
-        " This is an optional AI finish of a partial photo reconstruction. Keep architecture and contents visible in the original photos consistent across views. Fill visual gaps conservatively without claiming inferred areas were observed or measured. This output does not add measured geometry to the 3D reconstruction.";
-    }
-    const provider = createOpenAI({ apiKey: ENV.OPENAI_API_KEY });
-    const size =
-      input.mode === "freestyle"
-        ? orientationSize(input.orientation)
-        : guide || settings.size === "photo"
-          ? guide || base
-            ? outputSize(images[0])
-            : previous
-              ? outputSize(images[images.length - 1])
-              : orientationSize(input.orientation)
-          : settings.size;
-    const signal = AbortSignal.timeout(ttl - 30_000);
-    const result = await retryImageRequest(
-      () =>
-        generateImage({
-          model: provider.image(model),
-          prompt: { text: prompt, images },
-          size,
-          providerOptions: { openai: { quality: settings.quality, outputFormat: "png" } },
-          n: count,
-          maxRetries: 0,
-          abortSignal: signal,
-        }),
-      signal,
-    );
-    const produced = result.images?.length ? result.images : [result.image];
-    const createdAt = new Date().toISOString();
-    const designs = produced.map(() => {
-      const id = crypto.randomUUID();
-      return {
-        id,
-        key: `${ownerPrefix(u.sub)}${room.id}/${id}.png`,
-        prompt: input.notes,
-        createdAt,
-        baseId: base?.id ?? "",
-        plan: plan || undefined,
-        mode: input.mode,
-        inferred: input.fillGaps || undefined,
-        generation: {
-          model,
-          quality: settings.quality,
-          size,
-          outputTokens: produced.length === 1 ? result.usage?.outputTokens : undefined,
-          outputCostUsd:
-            produced.length === 1 ? outputCost(model, result.usage?.outputTokens) : undefined,
-        },
-        guide: guide && {
-          ...guide.constraints.capture,
-          key: `${ownerPrefix(u.sub)}${room.id}/${id}-guide.jpeg`,
-          layoutKey: `${ownerPrefix(u.sub)}${room.id}/${id}-layout.json`,
-          photoIds: originalPhotos.map((photo) => photo.id),
-          assetIds: refs.map((ref) => ref.id),
-          previousDesignId: previous?.id,
-          style: input.style,
-          measurements: input.measurements,
-          people: input.people,
-          lighting: input.lighting,
-        },
-      };
-    });
-    try {
-      for (const [index, design] of designs.entries()) {
-        // The SDK's uint8Array getter decodes through a JS string iterator, whose
-        // transient allocations can exceed our memory limit for a single 4K PNG.
-        // Decode natively without caching another full-size image on the result.
-        await save(design.key, Buffer.from(produced[index].base64, "base64"), "image/png");
-        if (design.guide && guide) {
-          await save(design.guide.key, guide.image, "image/jpeg");
-          await save(design.guide.layoutKey, guide.snapshot, "application/json");
+            inferred: input.fillGaps || undefined,
+            generation: {
+              model,
+              quality: settings.quality,
+              size,
+              outputTokens: result.usage?.outputTokens,
+              outputCostUsd: outputCost(model, result.usage?.outputTokens),
+            },
+            guide: guide && {
+              ...guide.constraints.capture,
+              key: `${ownerPrefix(u.sub)}${room.id}/${id}-guide.jpeg`,
+              layoutKey: `${ownerPrefix(u.sub)}${room.id}/${id}-layout.json`,
+              photoIds: originalPhotos.map((photo) => photo.id),
+              assetIds: refs.map((ref) => ref.id),
+              previousDesignId: previous?.id,
+              style: input.style,
+              measurements: input.measurements,
+              people: input.people,
+              lighting: input.lighting,
+            },
+          };
+          designs.push(design);
+          await save(design.key, Buffer.from(result.image.base64, "base64"), "image/png");
+          if (design.guide && guide) {
+            await save(design.guide.key, guide.image, "image/jpeg");
+            await save(design.guide.layoutKey, guide.snapshot, "application/json");
+          }
         }
-      }
-      const target = await mutateRooms(u.sub, (latest) => {
-        const target = latest.find((r) => r.id === room.id);
-        if (!target) throw new Error("Room was removed during generation.");
-        target.designs.unshift(...designs);
-        return target;
-      });
-      return target.designs[0].id;
-    } catch (error) {
-      for (const design of designs) {
-        for (const key of [design.key, design.guide?.key, design.guide?.layoutKey]) {
-          if (key) remove(key);
+        const target = await mutateRooms(u.sub, (latest) => {
+          const target = latest.find((r) => r.id === room.id);
+          if (!target) throw new Error("Room was removed during generation.");
+          target.designs.unshift(...designs);
+          return target;
+        });
+        return target.designs[0].id;
+      } catch (error) {
+        for (const design of designs) {
+          for (const key of [design.key, design.guide?.key, design.guide?.layoutKey]) {
+            if (key) remove(key);
+          }
         }
+        throw error;
       }
-      throw error;
-    }
-  }).catch((error) => console.error("Could not settle generation job", error));
+    },
+    releaseWork,
+  ).catch((error) => console.error("Could not settle generation job", error));
   return { jobId: job.id };
 }
 export async function startEditGeneration(
@@ -224,70 +247,91 @@ export async function startEditGeneration(
   if (!room) throw new Response("Room not found", { status: 404 });
   const source = room.designs.find((d) => d.id === input.designId);
   if (!source) throw new Error("Design not found.");
-  const sourceBytes = await load(source.key);
-  if (!sourceBytes) throw new Error("The design image is missing.");
-  const type = mediaType(source.key);
-  if (type !== "image/png") throw new Error("Only PNG designs can be brush-edited.");
-  const dims = pngDimensions(sourceBytes);
-  const mask = pngDimensions(input.mask);
-  if (!dims || !mask || dims.width !== mask.width || dims.height !== mask.height)
-    throw new Error("The mask must be a PNG with the same dimensions as the design.");
-  if (!claimGeneration(u.sub, 300_000))
-    throw new Error("A design is already being generated. Please wait for it to finish.");
+  let releaseWork = () => {};
   let job;
+  let sourceBytes: Uint8Array;
+  let claimed = false;
+  const type = mediaType(source.key);
   try {
+    if (!claimGeneration(u.sub, 300_000))
+      throw new Error("A design is already being generated. Please wait for it to finish.");
+    claimed = true;
+    releaseWork = acquireHeavyWork();
+    assertImageBudget([source.key], input.mask.byteLength);
+    const loaded = await load(source.key);
+    if (!loaded) throw new Error("The design image is missing.");
+    sourceBytes = loaded;
+    if (type !== "image/png") throw new Error("Only PNG designs can be brush-edited.");
+    const dims = pngDimensions(sourceBytes);
+    const mask = pngDimensions(input.mask);
+    if (!dims || !mask || dims.width !== mask.width || dims.height !== mask.height)
+      throw new Error("The mask must be a PNG with the same dimensions as the design.");
     job = createJob(u.sub, room.id);
   } catch (error) {
-    releaseGeneration(u.sub);
+    try {
+      if (claimed) releaseGeneration(u.sub);
+    } finally {
+      releaseWork();
+    }
     throw error;
   }
-  void settleGeneration(u.sub, job.id, async () => {
-    const form = new FormData();
-    form.set("model", ENV.OPENAI_IMAGE_MODEL || defaultImageModel);
-    form.set("prompt", buildEditPrompt(input.prompt));
-    form.set("image", new Blob([new Uint8Array(sourceBytes)], { type }), "design.png");
-    form.set("mask", new Blob([input.mask], { type: "image/png" }), "mask.png");
-    form.set("n", "1");
-    form.set("output_format", "png");
-    const response = await fetch("https://api.openai.com/v1/images/edits", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${ENV.OPENAI_API_KEY}` },
-      body: form,
-      signal: AbortSignal.timeout(270_000),
-    });
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`The image edit failed (${response.status}). ${detail.slice(0, 300)}`);
-    }
-    const data = (await response.json()) as { data?: { b64_json?: string }[] };
-    const b64 = data.data?.[0]?.b64_json;
-    if (!b64) throw new Error("The image edit returned no image.");
-    const bytes = Buffer.from(b64, "base64");
-    const design = {
-      id: crypto.randomUUID(),
-      key: `${ownerPrefix(u.sub)}${room.id}/${crypto.randomUUID()}.png`,
-      prompt: input.prompt,
-      createdAt: new Date().toISOString(),
-      baseId: source.baseId,
-      mode: "edit",
-    };
-    try {
-      await save(design.key, bytes, "image/png");
-      await mutateRooms(u.sub, (latest) => {
-        const target = latest.find((r) => r.id === room.id);
-        if (!target) throw new Error("Room was removed during generation.");
-        target.designs.unshift(design);
-        return target;
+  void settleGeneration(
+    u.sub,
+    job.id,
+    async () => {
+      const form = new FormData();
+      form.set("model", ENV.OPENAI_IMAGE_MODEL || defaultImageModel);
+      form.set("prompt", buildEditPrompt(input.prompt));
+      form.set("image", new Blob([sourceBytes as Uint8Array<ArrayBuffer>], { type }), "design.png");
+      form.set("mask", new Blob([input.mask], { type: "image/png" }), "mask.png");
+      form.set("n", "1");
+      form.set("output_format", "png");
+      const response = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${ENV.OPENAI_API_KEY}` },
+        body: form,
+        signal: AbortSignal.timeout(270_000),
       });
-      return design.id;
-    } catch (error) {
-      remove(design.key);
-      throw error;
-    }
-  }).catch((error) => console.error("Could not settle edit job", error));
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`The image edit failed (${response.status}). ${detail.slice(0, 300)}`);
+      }
+      const data = (await response.json()) as { data?: { b64_json?: string }[] };
+      const b64 = data.data?.[0]?.b64_json;
+      if (!b64) throw new Error("The image edit returned no image.");
+      const bytes = Buffer.from(b64, "base64");
+      const design = {
+        id: crypto.randomUUID(),
+        key: `${ownerPrefix(u.sub)}${room.id}/${crypto.randomUUID()}.png`,
+        prompt: input.prompt,
+        createdAt: new Date().toISOString(),
+        baseId: source.baseId,
+        mode: "edit",
+      };
+      try {
+        await save(design.key, bytes, "image/png");
+        await mutateRooms(u.sub, (latest) => {
+          const target = latest.find((r) => r.id === room.id);
+          if (!target) throw new Error("Room was removed during generation.");
+          target.designs.unshift(design);
+          return target;
+        });
+        return design.id;
+      } catch (error) {
+        remove(design.key);
+        throw error;
+      }
+    },
+    releaseWork,
+  ).catch((error) => console.error("Could not settle edit job", error));
   return { jobId: job.id };
 }
-export async function settleGeneration(owner: string, jobId: string, work: () => Promise<string>) {
+export async function settleGeneration(
+  owner: string,
+  jobId: string,
+  work: () => Promise<string>,
+  releaseWork?: () => void,
+) {
   try {
     finishJob(owner, jobId, { designId: await work() });
   } catch (error) {
@@ -295,6 +339,10 @@ export async function settleGeneration(owner: string, jobId: string, work: () =>
       error: generationError(error),
     });
   } finally {
-    releaseGeneration(owner);
+    try {
+      releaseGeneration(owner);
+    } finally {
+      releaseWork?.();
+    }
   }
 }

@@ -54,16 +54,57 @@ directly, preserving UTF-8 conversion for strings. The tests above protect exact
 single/batch/edit bytes, subarray ranges and snapshot semantics. These changes
 do not bound the full response or concurrent-request memory.
 
-## Remaining capacity risks
+## Admission and batch changes — 2026-11-10
 
-This is not a guarantee that every workload fits in 500 MB. An eight-image
-response alone nearly reaches that ceiling in the reduced harness. The SDK
-buffers the full JSON response and its base64 strings. Per-user leases also
-allow different users to generate concurrently, and input images are loaded
-before admission. Media responses make additional full-image copies.
+Live Railway configuration inspected during this change has a 1,000,000,000-byte
+service memory limit and one replica. Recent inspected runtime logs showed
+sleep/shutdown cycles; they did not establish a new OOM event. The older incident
+above remains the evidence for the previous 500 MB configuration.
 
-Before claiming capacity safety, choose a bounded batch/concurrency policy after
-testing realistic input-photo and concurrent-request loads. Serial one-image
-provider calls can reduce response memory, but may change latency, input-token
-charges, partial-result handling, and retry behavior; that requires an explicit
-product/billing decision. Until that policy is settled, do not describe large multi-image batches as proven safe at 500 MB.
+- Generation, brush edits and reconstruction share one server-wide processing
+  slot, acquired before loading image blobs. Other starts return 409. The slot
+  has no expiring lease: it releases only when setup fails or work settles,
+  including abort and cleanup. Per-user paid-work leases remain in place.
+- Image input lengths are read using SQLite `length(data)` before materializing
+  blobs. The combined limit is 32,000,000 bytes, including a captured guide and
+  previous design, or a brush mask. AI reconstruction checks its selected eight
+  source images; classical reconstruction checks all its inputs.
+- Variations request `n: 1` sequentially, decode natively, and save the result
+  before the next provider request. Only design metadata accumulates across the
+  batch. A failed batch removes intermediate blobs and publishes no partial
+  result. Each response's token usage belongs only to that variation.
+- Serial calls increase latency and repeat input-token billing. A later failure
+  cannot refund earlier provider work. The UI explains separate variation billing.
+- Media responses no longer make an explicit `Buffer.from` copy before the
+  Response constructor. Brush uploads similarly avoid a redundant typed-array copy.
+
+Maintained regressions cover cross-user/job-type admission before image reads,
+release after failure, exact output bytes, per-image billing metadata, aggregate
+input limits, saving before the next request, and failed-batch cleanup:
+
+```sh
+npx vitest run src/lib/memory-admission.test.ts src/lib/heavy-work.test.ts src/lib/generation.test.ts src/lib/generation.transport.test.ts src/lib/reconstruction-jobs.test.ts
+```
+
+An additional **temporary offline workload** completed eight variations through
+the installed SDK and SQLite with 30 MB of input images and 11,078,340 bytes per
+synthetic output. All eight provider requests used `n: 1`. Observed process RSS
+reached approximately 507 MB on macOS / Node 26.13.0, from an approximately 88 MB
+pre-generation process baseline. The harness streamed mock provider JSON and did
+not use credentials or paid requests. It was development scaffolding and was
+removed after measurement. These numbers are not directly comparable to the
+older Linux experiment above.
+
+## Remaining capacity limits
+
+This does not establish that the full application fits every workload at 500 MB
+or even prove a production peak below 1 GB. The offline workload excludes the
+Varlock launcher, production server baseline, concurrent media downloads and
+COLMAP's native process. The SDK still buffers one complete JSON response and
+its base64 data. The global slot applies to this single-process, single-replica
+architecture; horizontal scaling requires shared admission and storage design.
+
+The code changes are local until deployed. After deployment, exercise realistic
+photo/reference sets, brush edits and AI layouts while checking Railway memory
+and OOM events. Retain the 1 GB limit during that validation. Do not raise batch
+parallelism or claim 500 MB capacity from these synthetic results.

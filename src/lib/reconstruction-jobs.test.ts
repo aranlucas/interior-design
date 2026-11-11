@@ -15,7 +15,7 @@ import {
   startReconstruction,
   cancelRoomReconstruction,
 } from "./reconstruction.server";
-import { rooms, saveRooms, load, mutateRooms } from "./storage.server";
+import { rooms, save, saveRooms, load, mutateRooms } from "./storage.server";
 import type { ReconstructedScene } from "./reconstruction";
 const directory = mkdtempSync(join(tmpdir(), "roomform-reconstruction-jobs-"));
 beforeAll(() => {
@@ -36,6 +36,7 @@ async function fixture(owner: string) {
     designs: [],
     createdAt: new Date().toISOString(),
   };
+  for (const asset of room.assets) await save(asset.key, new Uint8Array([1]), "image/jpeg");
   await saveRooms(owner, [room]);
   const scene: ReconstructedScene = {
     version: 1,

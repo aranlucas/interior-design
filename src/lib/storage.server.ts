@@ -42,6 +42,20 @@ export async function load(key: string): Promise<Uint8Array | null> {
   const row = db().prepare("SELECT data FROM objects WHERE key=?").get(key);
   return (row?.data as Uint8Array) || null;
 }
+// Read lengths without materializing SQLite blobs into the Node heap.
+export function assertImageBudget(keys: string[], extraBytes = 0) {
+  let total = extraBytes;
+  const size = db().prepare("SELECT length(data) AS bytes FROM objects WHERE key=?");
+  for (const key of keys) {
+    const row = size.get(key);
+    if (!row) throw new Error("A reference image is missing. Please upload it again.");
+    total += Number(row.bytes);
+  }
+  if (total > 32_000_000)
+    throw new Error(
+      "These images exceed the 32 MB processing budget. Use fewer or smaller references.",
+    );
+}
 export function remove(key: string) {
   db().prepare("DELETE FROM objects WHERE key=?").run(key);
 }

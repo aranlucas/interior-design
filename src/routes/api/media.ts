@@ -17,7 +17,7 @@ export const Route = createFileRoute("/api/media")({
             return new Response("Not found", { status: 404 });
           const bytes = await load(key);
           if (!bytes) return new Response("Not found", { status: 404 });
-          return new Response(Buffer.from(bytes), {
+          return new Response(bytes as Uint8Array<ArrayBuffer>, {
             headers: {
               "Content-Type": key.endsWith("-layout.json")
                 ? "application/json"

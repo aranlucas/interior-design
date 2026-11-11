@@ -1,8 +1,20 @@
+import type { Asset } from "./types";
 import { z } from "zod";
 
 const distance = z.number().min(0).max(30);
 const extent = z.number().min(0.1).max(15);
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+export const roomMaterial = z.enum([
+  "paint",
+  "wood",
+  "tile",
+  "stone",
+  "concrete",
+  "metal",
+  "fabric",
+  "glass",
+  "unknown",
+]);
 const evidence = {
   support: z.enum(["visible", "inferred"]),
   photoNumbers: z.array(z.number().int().min(1).max(8)).max(8),
@@ -16,12 +28,14 @@ export const aiRoomLayoutInput = z.object({
     .max(12),
   ceilingHeight: z.number().min(1.8).max(6),
   floorColor: color,
+  floorMaterial: roomMaterial.optional(),
   walls: z
     .array(
       z.object({
         edgeIndex: z.number().int().min(0).max(11),
         label: z.string().min(1).max(80),
         color,
+        material: roomMaterial.optional(),
         ...evidence,
         openings: z
           .array(
@@ -63,6 +77,7 @@ export const aiRoomLayoutInput = z.object({
         height: extent,
         yawDegrees: z.number().min(-180).max(180),
         color,
+        material: roomMaterial.optional(),
         ...evidence,
       }),
     )
@@ -143,7 +158,74 @@ export function validateAiRoomLayout(value: unknown, photoCount: number): AiRoom
         opening.bottom + opening.height > layout.ceilingHeight + 0.02
       )
         throw new Error("An AI-estimated opening does not fit its wall. Try another build.");
+      if (opening.kind !== "window" && opening.bottom > 0.02)
+        throw new Error("An AI-estimated doorway must meet the floor.");
     }
+    const spans = wall.openings.map((opening) => ({
+      left: opening.center * length - opening.width / 2,
+      right: opening.center * length + opening.width / 2,
+      bottom: opening.bottom,
+      top: opening.bottom + opening.height,
+    }));
+    if (
+      spans.some((a, i) =>
+        spans
+          .slice(i + 1)
+          .some(
+            (b) =>
+              Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.02 &&
+              Math.min(a.top, b.top) - Math.max(a.bottom, b.bottom) > 0.02,
+          ),
+      )
+    )
+      throw new Error("AI-estimated openings overlap on the same wall.");
+  }
+  const inside = (p: (typeof points)[number]) => {
+    let result = false;
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i],
+        b = points[(i + 1) % points.length];
+      if (onSegment(a, b, p)) return true;
+      if (a.z > p.z !== b.z > p.z && p.x < ((b.x - a.x) * (p.z - a.z)) / (b.z - a.z) + a.x)
+        result = !result;
+    }
+    return result;
+  };
+  for (const fixture of layout.fixtures) {
+    if (fixture.bottom + fixture.height > layout.ceilingHeight + 0.02)
+      throw new Error(`The AI-estimated ${fixture.label} extends above the ceiling.`);
+    const yaw = (fixture.yawDegrees * Math.PI) / 180;
+    const corners = [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ].map(([x, z]) => ({
+      x:
+        fixture.x +
+        ((x * fixture.width) / 2) * Math.cos(yaw) +
+        ((z * fixture.depth) / 2) * Math.sin(yaw),
+      z:
+        fixture.z -
+        ((x * fixture.width) / 2) * Math.sin(yaw) +
+        ((z * fixture.depth) / 2) * Math.cos(yaw),
+    }));
+    // Corners alone do not catch a box spanning the missing part of an L-shaped room.
+    const crossesBoundary = corners.some((a, i) => {
+      const b = corners[(i + 1) % corners.length];
+      return points.some((c, j) => {
+        const d = points[(j + 1) % points.length];
+        return cross(a, b, c) * cross(a, b, d) < -1e-8 && cross(c, d, a) * cross(c, d, b) < -1e-8;
+      });
+    });
+    if (!corners.every(inside) || !inside({ x: fixture.x, z: fixture.z }) || crossesBoundary)
+      throw new Error(`The AI-estimated ${fixture.label} extends outside the room.`);
   }
   return layout;
+}
+
+/** Spread the vision budget across the upload sequence, retaining evidence order. */
+export function selectAiRoomPhotos<T extends Asset>(photos: T[]) {
+  if (photos.length <= 8) return photos;
+  return Array.from({ length: 8 }, (_, i) => photos[Math.round((i * (photos.length - 1)) / 7)]);
 }

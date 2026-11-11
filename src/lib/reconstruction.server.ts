@@ -1,8 +1,18 @@
+import { selectAiRoomPhotos } from "./ai-room-layout";
+import { acquireHeavyWork } from "./heavy-work.server";
 import { ENV } from "varlock/env";
 import { reconstructionInput } from "./reconstruction";
 import { reconstructionEngineAvailable, runColmap } from "./colmap-runner.server";
 import { runAiRoomLayout } from "./ai-room-layout.server";
-import { load, mutateRooms, ownerPrefix, rooms, save, remove } from "./storage.server";
+import {
+  assertImageBudget,
+  load,
+  mutateRooms,
+  ownerPrefix,
+  rooms,
+  save,
+  remove,
+} from "./storage.server";
 import type { ReconstructionJob, Room } from "./types";
 
 type Running = { owner: string; roomId: string; controller: AbortController };
@@ -65,6 +75,7 @@ export async function startReconstruction(owner: string, value: unknown) {
     throw new Response("A 3D room is already building. Please wait.", { status: 409 });
   const id = crypto.randomUUID(),
     controller = new AbortController();
+  const releaseWork = acquireHeavyWork();
   running.set(id, { owner, roomId: room.id, controller });
   const now = new Date().toISOString();
   const job: ReconstructionJob = {
@@ -84,12 +95,13 @@ export async function startReconstruction(owner: string, value: unknown) {
       target.reconstruction = job;
       return target;
     });
-    void settle(owner, updated, controller, input.matches).catch((error) =>
+    void settle(owner, updated, controller, input.matches, releaseWork).catch((error) =>
       console.error("Could not settle room reconstruction", error),
     );
     return updated;
   } catch (error) {
     running.delete(id);
+    releaseWork();
     throw error;
   }
 }
@@ -99,6 +111,7 @@ async function settle(
   room: Room,
   controller: AbortController,
   matches: Parameters<typeof runColmap>[0]["matches"],
+  releaseWork: () => void,
 ) {
   const job = room.reconstruction!;
   const deadline = AbortSignal.timeout(12 * 60_000);
@@ -113,7 +126,12 @@ async function settle(
       return target;
     });
   try {
+    const photos = room.assets.filter((a) => a.kind === "room");
+    assertImageBudget(
+      (job.mode === "ai-layout" ? selectAiRoomPhotos(photos) : photos).map((a) => a.key),
+    );
     const options = {
+      measurements: room.measurements,
       photos: room.assets.filter((a) => a.kind === "room"),
       matches,
       loadPhoto: load,
@@ -171,6 +189,7 @@ async function settle(
     }
   } finally {
     running.delete(job.id);
+    releaseWork();
   }
 }
 
