@@ -33,7 +33,7 @@ export function ReferencesList({ state }: { state: StudioState }) {
                     setSelected((p) => (on ? p.filter((x) => x !== a.id) : [...p, a.id]))
                   }
                 >
-                  <img src={assetUrl(a.key)} alt="" />
+                  <img src={assetUrl(a.key)} alt="" loading="lazy" decoding="async" />
                   <span className="check">{on && <Check size={11} strokeWidth={3} />}</span>
                 </button>
                 <div className="ref-text">

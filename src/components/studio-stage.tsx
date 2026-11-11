@@ -17,6 +17,26 @@ import { CompareVideo } from "./compare-video";
 import type { StudioState } from "../hooks/use-studio";
 import { lazy, Suspense } from "react";
 const RoomPreview = lazy(() => import("./room-preview"));
+/** Fetch the stored prompt only when opened; it is too large to keep in room data. */
+function DesignPrompt({ promptKey }: { promptKey: string }) {
+  const [text, setText] = useState<string>();
+  const [failed, setFailed] = useState(false);
+  return (
+    <details
+      onToggle={(e) => {
+        if (!e.currentTarget.open || text !== undefined) return;
+        fetch(assetUrl(promptKey))
+          .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+          .then(setText, () => setFailed(true));
+      }}
+    >
+      <summary>Prompt sent to the image model</summary>
+      <pre className="design-prompt">
+        {failed ? "The saved prompt could not be loaded." : (text ?? "Loading…")}
+      </pre>
+    </details>
+  );
+}
 export function StudioStage({ state }: { state: StudioState }) {
   const {
     generating,
@@ -319,12 +339,7 @@ export function StudioStage({ state }: { state: StudioState }) {
               . Input tokens are billed separately.
             </p>
           )}
-          {active.fullPrompt && (
-            <details>
-              <summary>Prompt sent to the image model</summary>
-              <pre className="design-prompt">{active.fullPrompt}</pre>
-            </details>
-          )}
+          {active.promptKey && <DesignPrompt key={active.promptKey} promptKey={active.promptKey} />}
         </details>
       )}
       <Filmstrips state={state} />

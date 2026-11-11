@@ -1,9 +1,42 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Star, X } from "lucide-react";
-import { assetUrl } from "../lib/types";
-import { accept } from "../lib/studio-client";
+import { assetUrl, type Room } from "../lib/types";
+import { accept, api, makePreview, studioUrls } from "../lib/studio-client";
 import { Strip } from "./studio-controls";
 import type { StudioState } from "../hooks/use-studio";
+/**
+ * Give each design a small stored preview, one at a time. A design's full PNG can be many MB;
+ * after this one-time download (usually already cached by the stage), the strip loads ~50 KB.
+ */
+function useDesignPreviews(room: Room, update: StudioState["update"]) {
+  const attempted = useRef(new Set<string>());
+  useEffect(() => {
+    const pending = room.designs.filter((d) => !d.previewKey && !attempted.current.has(d.id));
+    if (!pending.length) return;
+    let cancelled = false;
+    void (async () => {
+      for (const design of pending) {
+        if (cancelled) return;
+        attempted.current.add(design.id);
+        try {
+          const response = await fetch(assetUrl(design.key));
+          if (!response.ok) continue;
+          const data = new FormData();
+          data.set("roomId", room.id);
+          data.set("designId", design.id);
+          data.set("preview", await makePreview(await response.blob()), "preview.jpeg");
+          const updated = await api<Room>(studioUrls.designPreview, { method: "POST", body: data });
+          if (!cancelled) await update(updated);
+        } catch {
+          // Optional: the strip falls back to the full image.
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [room.id, room.designs, update]);
+}
 export function Filmstrips({ state }: { state: StudioState }) {
   const {
     photos,
@@ -22,6 +55,7 @@ export function Filmstrips({ state }: { state: StudioState }) {
     upload,
   } = state;
   const room = state.room!;
+  useDesignPreviews(room, state.update);
   const [savedOnly, setSavedOnly] = useState(false);
   const starredCount = room.designs.filter((d) => d.starred).length;
   if (savedOnly && starredCount === 0) setSavedOnly(false);
@@ -45,7 +79,7 @@ export function Filmstrips({ state }: { state: StudioState }) {
                 setView("photo");
               }}
             >
-              <img src={assetUrl(a.key)} alt="" />
+              <img src={assetUrl(a.key)} alt="" loading="lazy" decoding="async" />
             </button>
             <button
               className="thumb-delete"
@@ -97,7 +131,7 @@ export function Filmstrips({ state }: { state: StudioState }) {
                   setView("design");
                 }}
               >
-                <img src={assetUrl(d.key)} alt="" />
+                <img src={assetUrl(d.previewKey ?? d.key)} alt="" loading="lazy" decoding="async" />
               </button>
               {d.starred && (
                 <span className="thumb-star" aria-label="Saved design">

@@ -175,7 +175,9 @@ it("sends the actual 3D image first through the installed SDK, then ordered sour
     previousDesignId: input.previousDesignId,
   });
   expect(design.prompt).toBe(input.notes);
-  expect(design.fullPrompt).toBe(prompt);
+  // The full prompt lives beside the image; room data (re-read by every poll) stays small.
+  expect(Buffer.from((await s.load(design.promptKey!))!).toString()).toBe(prompt);
+  expect(JSON.stringify(await s.rooms(owner))).not.toContain("Final camera check");
   expect(await s.load(design.guide!.key)).toEqual(jpeg);
   const snapshot = JSON.parse(Buffer.from((await s.load(design.guide!.layoutKey))!).toString());
   expect(snapshot.layout).toEqual(exampleAiRoomLayout());
@@ -184,7 +186,7 @@ it("sends the actual 3D image first through the installed SDK, then ordered sour
   expect(await s.load(design.guide!.layoutKey)).not.toBeNull();
   const { deleteDesign } = await import("./room-actions.server");
   await deleteDesign(owner, room.id, design.id);
-  for (const key of [design.key, design.guide!.key, design.guide!.layoutKey])
+  for (const key of [design.key, design.promptKey!, design.guide!.key, design.guide!.layoutKey])
     expect(await s.load(key)).toBeNull();
 });
 

@@ -33,6 +33,13 @@ import type { z } from "zod";
 function mediaType(key: string) {
   return key.endsWith(".png") ? "image/png" : key.endsWith(".webp") ? "image/webp" : "image/jpeg";
 }
+/** Prompts are kept beside the image, not in rooms.json, which every poll re-reads. */
+const promptKeyFor = (designKey: string) => designKey.replace(/\.png$/, "-prompt.txt");
+const promptBlob = (design: Design, prompt: string) => ({
+  key: design.promptKey!,
+  bytes: Buffer.from(prompt),
+  type: "text/plain",
+});
 /** The placement pre-pass only helps when there are products to place in a furnished room. */
 export function wantsPlacementPlan(mode: z.infer<typeof designInput>["mode"], refKinds: string[]) {
   return (mode === "redesign" || mode === "stage") && refKinds.includes("product");
@@ -212,6 +219,8 @@ export async function startGeneration(owner: string, raw: z.input<typeof designI
             : settings.size;
       const deadline = AbortSignal.timeout(ttl - 30_000);
       const designs: Design[] = [];
+      // Variations share one prompt: stored once, after every image succeeds.
+      const promptKey = `${ownerPrefix(u.sub)}${room.id}/${crypto.randomUUID()}-prompt.txt`;
       try {
         for (let index = 0; index < count; index++) {
           const signal = AbortSignal.any([deadline, AbortSignal.timeout(270_000)]);
@@ -235,7 +244,7 @@ export async function startGeneration(owner: string, raw: z.input<typeof designI
             id,
             key: `${ownerPrefix(u.sub)}${room.id}/${id}.png`,
             prompt: input.notes,
-            fullPrompt: prompt,
+            promptKey,
             createdAt,
             baseId: base?.id ?? "",
             plan: plan || undefined,
@@ -268,6 +277,7 @@ export async function startGeneration(owner: string, raw: z.input<typeof designI
             await save(design.guide.layoutKey, guide.snapshot, "application/json");
           }
         }
+        await save(promptKey, prompt, "text/plain");
         const target = await mutateRooms(u.sub, (latest) => {
           const target = latest.find((r) => r.id === room.id);
           if (!target) throw new Error("Room was removed during generation.");
@@ -277,7 +287,12 @@ export async function startGeneration(owner: string, raw: z.input<typeof designI
         return target.designs[0].id;
       } catch (error) {
         for (const design of designs) {
-          for (const key of [design.key, design.guide?.key, design.guide?.layoutKey]) {
+          for (const key of [
+            design.key,
+            design.promptKey,
+            design.guide?.key,
+            design.guide?.layoutKey,
+          ]) {
             if (key) remove(key);
           }
         }
@@ -327,11 +342,12 @@ export async function startFinalRender(owner: string, input: { roomId: string; d
         signal,
       );
       const id = crypto.randomUUID();
+      const key = `${ownerPrefix(owner)}${room.id}/${id}.png`;
       const design: Design = {
         id,
-        key: `${ownerPrefix(owner)}${room.id}/${id}.png`,
+        key,
         prompt: source.prompt,
-        fullPrompt: prompt,
+        promptKey: promptKeyFor(key),
         createdAt: new Date().toISOString(),
         baseId: source.baseId,
         plan: source.plan,
@@ -349,7 +365,10 @@ export async function startFinalRender(owner: string, input: { roomId: string; d
         owner,
         room.id,
         [design],
-        [{ key: design.key, bytes: Buffer.from(result.image.base64, "base64"), type: "image/png" }],
+        [
+          { key: design.key, bytes: Buffer.from(result.image.base64, "base64"), type: "image/png" },
+          promptBlob(design, prompt),
+        ],
       );
     },
     releaseWork,
@@ -460,11 +479,12 @@ export async function startEditGeneration(
       const b64 = data.data?.[0]?.b64_json;
       if (!b64) throw new Error("The image edit returned no image.");
       const outputTokens = data.usage?.output_tokens;
+      const key = `${ownerPrefix(owner)}${room.id}/${crypto.randomUUID()}.png`;
       const design: Design = {
         id: crypto.randomUUID(),
-        key: `${ownerPrefix(owner)}${room.id}/${crypto.randomUUID()}.png`,
+        key,
         prompt: input.prompt,
-        fullPrompt: prompt,
+        promptKey: promptKeyFor(key),
         createdAt: new Date().toISOString(),
         baseId: source.baseId,
         mode: "edit",
@@ -481,7 +501,10 @@ export async function startEditGeneration(
         owner,
         room.id,
         [design],
-        [{ key: design.key, bytes: Buffer.from(b64, "base64"), type: "image/png" }],
+        [
+          { key: design.key, bytes: Buffer.from(b64, "base64"), type: "image/png" },
+          promptBlob(design, prompt),
+        ],
       );
     },
     releaseWork,

@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { analyzeLayout } from "./layout.server";
+import { nonStrictObjects } from "./strict-schema.test-helper";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -13,7 +14,12 @@ it.each(["image/png", undefined])(
     vi.stubEnv("OPENAI_API_KEY", "transport-test-key");
     const warnings = vi.fn();
     vi.stubGlobal("AI_SDK_LOG_WARNINGS", warnings);
-    let requestBody: { messages: { content: unknown }[] } | undefined;
+    let requestBody:
+      | {
+          messages: { content: unknown }[];
+          response_format?: { json_schema?: { schema: unknown } };
+        }
+      | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       requestBody = JSON.parse(String(init?.body));
       return Response.json({
@@ -47,6 +53,8 @@ it.each(["image/png", undefined])(
     });
 
     expect(result).toBe("Estimated room geometry: 4 m wide.");
+    expect(requestBody?.response_format?.json_schema?.schema).toBeDefined();
+    expect(nonStrictObjects(requestBody?.response_format?.json_schema?.schema)).toEqual([]);
     expect(requestBody?.messages[1].content).toContainEqual({
       type: "image_url",
       image_url: { url: `data:image/png;base64,${base64}` },

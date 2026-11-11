@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/media")({
           if (
             !key.startsWith(ownerPrefix(u.sub)) ||
             key.includes("..") ||
-            !/(\.(png|jpeg|webp)|-layout\.json)$/.test(key)
+            !/(\.(png|jpeg|webp)|-layout\.json|-prompt\.txt)$/.test(key)
           )
             return new Response("Not found", { status: 404 });
           const bytes = await load(key);
@@ -21,7 +21,9 @@ export const Route = createFileRoute("/api/media")({
             headers: {
               "Content-Type": key.endsWith("-layout.json")
                 ? "application/json"
-                : `image/${key.split(".").pop()}`,
+                : key.endsWith("-prompt.txt")
+                  ? "text/plain; charset=utf-8"
+                  : `image/${key.split(".").pop()}`,
               "Cache-Control": "private, max-age=31536000, immutable",
               "X-Content-Type-Options": "nosniff",
             },

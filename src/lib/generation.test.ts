@@ -391,7 +391,9 @@ it("sends selected references with a brush edit, keeps the source size and quali
       outputTokens: 6000,
       outputCostUsd: 0.18,
     });
-    expect(edited.fullPrompt).toBe(String(form.get("prompt")));
+    expect(Buffer.from((await s.load(edited.promptKey!))!).toString()).toBe(
+      String(form.get("prompt")),
+    );
   } finally {
     vi.unstubAllGlobals();
   }
@@ -445,4 +447,42 @@ it("re-renders a chosen draft at max quality from the design image alone", async
   expect(await s.load(final.key)).toEqual(new Uint8Array([5]));
   expect(s.claimGeneration(owner)).toBe(true);
   s.releaseGeneration(owner);
+});
+it("stores a batch's prompt once and keeps it until the last variation using it is deleted", async () => {
+  const s = await import("./storage.server");
+  const { startGeneration } = await import("./generation.server");
+  const { deleteDesign } = await import("./room-actions.server");
+  const owner = "shared-prompt";
+  const roomId = crypto.randomUUID();
+  await s.saveRooms(owner, [
+    {
+      id: roomId,
+      name: "Room",
+      type: "Living room",
+      notes: "",
+      style: "",
+      assets: [],
+      designs: [],
+      createdAt: new Date().toISOString(),
+    },
+  ]);
+  vi.mocked(generateImage)
+    .mockResolvedValueOnce({ image: generatedImage([1]) } as never)
+    .mockResolvedValueOnce({ image: generatedImage([2]) } as never);
+  const { jobId } = await startGeneration(owner, {
+    roomId,
+    notes: "Green velvet sofa",
+    style: "",
+    assetIds: [],
+    mode: "freestyle",
+    count: 2,
+  });
+  await vi.waitFor(() => expect(s.getJob(owner, jobId)?.status).toBe("succeeded"));
+  const [a, b] = (await s.rooms(owner))[0].designs;
+  expect(a.promptKey).toBe(b.promptKey);
+  expect(Buffer.from((await s.load(a.promptKey!))!).toString()).toContain("Green velvet sofa");
+  await deleteDesign(owner, roomId, a.id);
+  expect(await s.load(b.promptKey!)).not.toBeNull();
+  await deleteDesign(owner, roomId, b.id);
+  expect(await s.load(b.promptKey!)).toBeNull();
 });
