@@ -45,6 +45,8 @@ export function AiRoomLayoutScene({
       );
       return;
     }
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
     renderer.setClearColor("#eeede9");
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
@@ -52,7 +54,7 @@ export function AiRoomLayoutScene({
     element.appendChild(renderer.domElement);
     const scene = new THREE.Scene(),
       camera = new THREE.PerspectiveCamera(40, 1, 0.01, 500);
-    scene.add(new THREE.HemisphereLight("#ffffff", "#c4b9a3", 2.4));
+    scene.add(new THREE.HemisphereLight("#ffffff", "#c4b9a3", 1.8));
     const sun = new THREE.DirectionalLight("#fff5e4", 2.4);
     sun.position.set(-4, 12, 8);
     sun.castShadow = true;

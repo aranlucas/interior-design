@@ -185,6 +185,12 @@ export function DesignPanel({ state }: { state: StudioState }) {
               </button>
             ))}
           </div>
+          {count > 1 && (
+            <p className="room-help">
+              Variations run one at a time and may take longer. Each variation is billed separately,
+              including its input images.
+            </p>
+          )}
         </div>
         {failed && !generating && (
           <p className="generation-error" role="status">

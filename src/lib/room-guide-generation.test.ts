@@ -264,8 +264,10 @@ it("keeps photo generation's base/context/reference/prior order and geometry pre
   const layout = await import("./layout.server");
   const analyze = vi.spyOn(layout, "analyzeLayout").mockResolvedValue("Keep the window clear.");
   let form: FormData | undefined;
+  const requests: FormData[] = [];
   vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
     form = init?.body as FormData;
+    requests.push(form);
     return Response.json({ created: 1, data: [{ b64_json: output.toString("base64") }] });
   });
   const { startGeneration } = await import("./generation.server");
@@ -278,7 +280,9 @@ it("keeps photo generation's base/context/reference/prior order and geometry pre
   expect(
     await Promise.all(files.map(async (file) => new Uint8Array(await file.arrayBuffer()))),
   ).toEqual([0, 1, 3, 2, 4].map((i) => new Uint8Array([...output, i])));
-  expect(form!.get("n")).toBe("2");
+  expect(requests).toHaveLength(2);
+  expect(requests.map((request) => request.get("n"))).toEqual(["1", "1"]);
+  expect((await s.rooms(owner))[0].designs).toHaveLength(3);
   expect(String(form!.get("prompt"))).toContain("Keep the window clear.");
   expect(String(form!.get("prompt"))).toContain("Image 3: inspiration");
   const design = (await s.rooms(owner))[0].designs[0];

@@ -229,7 +229,7 @@ export function StudioStage({ state }: { state: StudioState }) {
             <p>Generating…</p>
             <small>
               {count > 1
-                ? `${count} designs — this can take a few minutes.`
+                ? `${count} designs, generated one at a time. Larger batches may take several minutes.`
                 : "This can take a few minutes."}
             </small>
           </div>

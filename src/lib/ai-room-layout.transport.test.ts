@@ -8,8 +8,10 @@ afterEach(() => {
 });
 it("serializes the installed SDK's real vision request with structured output and private storage disabled", async () => {
   vi.stubEnv("OPENAI_API_KEY", "transport-test-key");
+  let requests = 0;
   let requestBody: Record<string, unknown> | undefined;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+    requests++;
     requestBody = JSON.parse(String(init?.body));
     return Response.json({
       id: "resp_test",
@@ -49,6 +51,7 @@ it("serializes the installed SDK's real vision request with structured output an
     progress: async () => {},
     signal: AbortSignal.timeout(10_000),
   });
+  expect(requests).toBe(2);
   expect(result.scene.kind).toBe("ai-layout");
   expect(requestBody?.store).toBe(false);
   expect(JSON.stringify(requestBody)).toContain("data:image/png;base64,");
