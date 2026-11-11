@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { runAiRoomLayout } from "./ai-room-layout.server";
 import { exampleAiRoomLayout } from "./ai-room-layout.fixture";
+import { nonStrictObjects } from "./strict-schema.test-helper";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -56,4 +57,9 @@ it("serializes the installed SDK's real vision request with structured output an
   expect(requestBody?.store).toBe(false);
   expect(JSON.stringify(requestBody)).toContain("data:image/png;base64,");
   expect(requestBody?.text).toMatchObject({ format: { type: "json_schema" } });
+  // Strict structured output: every property of every object must be required.
+  const schema = (requestBody?.text as { format?: { schema?: unknown } } | undefined)?.format
+    ?.schema;
+  expect(schema).toBeDefined();
+  expect(nonStrictObjects(schema)).toEqual([]);
 });

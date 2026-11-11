@@ -12,10 +12,12 @@ export function exampleAiRoomLayout(): AiRoomLayout {
     ],
     ceilingHeight: 2.6,
     floorColor: "#c2a47b",
+    floorMaterial: "wood",
     walls: Array.from({ length: 4 }, (_, edgeIndex) => ({
       edgeIndex,
       label: `Wall ${edgeIndex + 1}`,
       color: "#eeeae2",
+      material: "paint",
       support: edgeIndex < 2 ? "visible" : "inferred",
       photoNumbers: edgeIndex < 2 ? [1] : [],
       openings:
@@ -45,6 +47,7 @@ export function exampleAiRoomLayout(): AiRoomLayout {
         height: 0.9,
         yawDegrees: 0,
         color: "#ece7de",
+        material: "unknown",
         support: "visible",
         photoNumbers: [1],
       },

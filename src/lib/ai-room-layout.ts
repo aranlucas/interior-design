@@ -44,20 +44,63 @@ export const fixtureKinds = [
   "rug",
   "other",
 ] as const;
-const fixture = z.object({
-  label: z.string().min(1).max(80),
-  kind: z.enum(fixtureKinds),
-  x: distance,
-  z: distance,
-  bottom: z.number().min(0).max(5),
-  width: extent,
-  depth: z.number().min(0.01).max(15),
-  height: z.number().min(0.01).max(15),
-  yawDegrees: yaw,
-  color,
-  material: roomMaterial.optional(),
-  ...evidence,
-});
+/**
+ * OpenAI strict structured output requires every property to be listed as required, so the
+ * model-facing schema uses required materials ("unknown" when uncertain). Stored layouts keep
+ * them optional because builds from before material support have none.
+ */
+const layoutShape = <M extends z.ZodType>(material: M) => {
+  const fixture = z.object({
+    label: z.string().min(1).max(80),
+    kind: z.enum(fixtureKinds),
+    x: distance,
+    z: distance,
+    bottom: z.number().min(0).max(5),
+    width: extent,
+    depth: z.number().min(0.01).max(15),
+    height: z.number().min(0.01).max(15),
+    yawDegrees: yaw,
+    color,
+    material,
+    ...evidence,
+  });
+  return {
+    summary: z.string().min(1).max(500),
+    assumptions: z.array(z.string().min(1).max(250)).max(10),
+    footprint: z
+      .array(z.object({ x: distance, z: distance }))
+      .min(3)
+      .max(12),
+    ceilingHeight: z.number().min(1.8).max(6),
+    floorColor: color,
+    floorMaterial: material,
+    walls: z
+      .array(
+        z.object({
+          edgeIndex: z.number().int().min(0).max(11),
+          label: z.string().min(1).max(80),
+          color,
+          material,
+          ...evidence,
+          openings: z
+            .array(
+              z.object({
+                kind: z.enum(["window", "door", "passage"]),
+                center: z.number().min(0).max(1),
+                width: extent,
+                bottom: z.number().min(0).max(5),
+                height: z.number().min(0.2).max(6),
+                ...evidence,
+              }),
+            )
+            .max(6),
+        }),
+      )
+      .min(3)
+      .max(12),
+    fixtures: z.array(fixture).max(40),
+  };
+};
 const camera = z.object({
   photoNumber: z.number().int().min(1).max(8),
   x: distance,
@@ -77,47 +120,14 @@ const product = z.object({
   height: extent,
   yawDegrees: yaw,
 });
-const shape = {
-  summary: z.string().min(1).max(500),
-  assumptions: z.array(z.string().min(1).max(250)).max(10),
-  footprint: z
-    .array(z.object({ x: distance, z: distance }))
-    .min(3)
-    .max(12),
-  ceilingHeight: z.number().min(1.8).max(6),
-  floorColor: color,
-  floorMaterial: roomMaterial.optional(),
-  walls: z
-    .array(
-      z.object({
-        edgeIndex: z.number().int().min(0).max(11),
-        label: z.string().min(1).max(80),
-        color,
-        material: roomMaterial.optional(),
-        ...evidence,
-        openings: z
-          .array(
-            z.object({
-              kind: z.enum(["window", "door", "passage"]),
-              center: z.number().min(0).max(1),
-              width: extent,
-              bottom: z.number().min(0).max(5),
-              height: z.number().min(0.2).max(6),
-              ...evidence,
-            }),
-          )
-          .max(6),
-      }),
-    )
-    .min(3)
-    .max(12),
-  fixtures: z.array(fixture).max(40),
-};
 /** The schema the vision model must fill: every field required for strict structured output. */
-export const aiRoomLayoutInput = z.object({ ...shape, cameras: z.array(camera).max(8) });
+export const aiRoomLayoutInput = z.object({
+  ...layoutShape(roomMaterial),
+  cameras: z.array(camera).max(8),
+});
 /** Stored layouts: older builds have no cameras; client-placed products exist only after edits. */
 export const storedAiRoomLayout = z.object({
-  ...shape,
+  ...layoutShape(roomMaterial.optional()),
   cameras: z.array(camera).max(8).optional(),
   products: z.array(product).max(10).optional(),
 });
