@@ -22,6 +22,7 @@ import { Route as RoomsIndexRouteImport } from './routes/rooms.index'
 import { Route as RoomsRoomIdRouteImport } from './routes/rooms.$roomId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiDesignsEditRouteImport } from './routes/api/designs.edit'
+import { Route as ApiDesignsPreviewRouteImport } from './routes/api/designs.preview'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -88,6 +89,11 @@ const ApiDesignsEditRoute = ApiDesignsEditRouteImport.update({
   path: '/api/designs/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDesignsPreviewRoute = ApiDesignsPreviewRouteImport.update({
+  id: '/api/designs/preview',
+  path: '/api/designs/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/rooms/': typeof RoomsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/designs/edit': typeof ApiDesignsEditRoute
+  '/api/designs/preview': typeof ApiDesignsPreviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/rooms': typeof RoomsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/designs/edit': typeof ApiDesignsEditRoute
+  '/api/designs/preview': typeof ApiDesignsPreviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/rooms/': typeof RoomsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/designs/edit': typeof ApiDesignsEditRoute
+  '/api/designs/preview': typeof ApiDesignsPreviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/rooms/'
     | '/api/auth/$'
     | '/api/designs/edit'
+    | '/api/designs/preview'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/rooms'
     | '/api/auth/$'
     | '/api/designs/edit'
+    | '/api/designs/preview'
   id:
     | '__root__'
     | '/'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/rooms/'
     | '/api/auth/$'
     | '/api/designs/edit'
+    | '/api/designs/preview'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -193,6 +205,7 @@ export interface RootRouteChildren {
   ApiSessionRoute: typeof ApiSessionRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiDesignsEditRoute: typeof ApiDesignsEditRoute
+  ApiDesignsPreviewRoute: typeof ApiDesignsPreviewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -288,6 +301,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDesignsEditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/designs/preview': {
+      id: '/api/designs/preview'
+      path: '/api/designs/preview'
+      fullPath: '/api/designs/preview'
+      preLoaderRoute: typeof ApiDesignsPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -315,6 +335,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSessionRoute: ApiSessionRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiDesignsEditRoute: ApiDesignsEditRoute,
+  ApiDesignsPreviewRoute: ApiDesignsPreviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

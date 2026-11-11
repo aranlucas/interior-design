@@ -6,6 +6,11 @@ import { updateRoom, deleteDesign, attachAsset, deleteAsset } from "../../lib/ro
 import { roomInput, roomName, roomDelete, uuid } from "../../lib/validation";
 import type { Asset, Room } from "../../lib/types";
 import { cancelRoomReconstruction } from "../../lib/reconstruction.server";
+/** Lens metadata the browser read before compression stripped EXIF; ignored if implausible. */
+function focal35(value: FormDataEntryValue | null) {
+  const focal = Number(value);
+  return Number.isInteger(focal) && focal >= 8 && focal <= 400 ? { focal35: focal } : {};
+}
 export const Route = createFileRoute("/api/rooms")({
   server: {
     handlers: {
@@ -67,6 +72,7 @@ export const Route = createFileRoute("/api/rooms")({
               dimensions: String(data.get("dimensions") || "").slice(0, 200),
               url: safeUrl(String(data.get("url") || "")),
               notes: String(data.get("notes") || "").slice(0, 1000),
+              ...(kind === "room" && focal35(data.get("focal35"))),
             },
             new Uint8Array(await file.arrayBuffer()),
             file.type,

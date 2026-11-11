@@ -1,6 +1,7 @@
 import { mutateRooms, ownerPrefix, remove, writeObject } from "./storage.server";
 import { roomUpdate } from "./validation";
 import { roomModel } from "./room-model";
+import { jpegDimensions } from "./image-size";
 import type { Asset } from "./types";
 
 export async function attachAsset(
@@ -68,10 +69,48 @@ export async function deleteDesign(owner: string, roomId: string, designId: stri
     const design = room?.designs.find((d) => d.id === designId);
     if (!room || !design) throw new Response("Design not found", { status: 404 });
     if (design.key.startsWith(ownerPrefix(owner))) remove(design.key);
-    for (const key of [design.guide?.key, design.guide?.layoutKey]) {
+    // Variations from one run share a prompt; keep it while a sibling still uses it.
+    const sharedPrompt = room.designs.some(
+      (d) => d.id !== designId && d.promptKey === design.promptKey,
+    );
+    for (const key of [
+      sharedPrompt ? undefined : design.promptKey,
+      design.previewKey,
+      design.guide?.key,
+      design.guide?.layoutKey,
+    ]) {
       if (key?.startsWith(`${ownerPrefix(owner)}${roomId}/`)) remove(key);
     }
     room.designs = room.designs.filter((d) => d.id !== designId);
+    return room;
+  });
+}
+
+export const PREVIEW_EDGE = 640;
+const PREVIEW_BYTES = 400_000;
+
+/**
+ * Attach a small browser-made JPEG preview to a design, so filmstrips stop downloading the
+ * full-resolution PNG. Idempotent: a design keeps its first valid preview.
+ */
+export async function saveDesignPreview(
+  owner: string,
+  roomId: string,
+  designId: string,
+  bytes: Uint8Array,
+) {
+  const dims = jpegDimensions(bytes);
+  if (!dims || bytes.byteLength > PREVIEW_BYTES || Math.max(dims.width, dims.height) > PREVIEW_EDGE)
+    throw new Response(`Upload a JPEG preview up to ${PREVIEW_EDGE} px.`, { status: 400 });
+  const key = `${ownerPrefix(owner)}${roomId}/${designId}-preview.jpeg`;
+  return mutateRooms(owner, (all) => {
+    const room = all.find((r) => r.id === roomId);
+    const design = room?.designs.find((d) => d.id === designId);
+    if (!room || !design) throw new Response("Design not found", { status: 404 });
+    if (!design.previewKey) {
+      writeObject(key, bytes, "image/jpeg");
+      design.previewKey = key;
+    }
     return room;
   });
 }

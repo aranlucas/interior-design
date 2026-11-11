@@ -114,3 +114,24 @@ it("covers the whole photo sequence within the eight-view budget and retains evi
   );
   expect(selectAiRoomPhotos(photos.slice(0, 4))).toEqual(photos.slice(0, 4));
 });
+
+it("uses the lens captured at upload, because compressed photos no longer carry EXIF", async () => {
+  vi.stubEnv("OPENAI_API_KEY", "test-key");
+  vi.mocked(generateText).mockResolvedValue({ output: exampleAiRoomLayout() } as never);
+  await runAiRoomLayout({
+    photos: [
+      { id: "one", key: "one.jpeg", name: "Room", kind: "room", focal35: 26 },
+      { id: "two", key: "two.jpeg", name: "Room", kind: "room" },
+    ],
+    loadPhoto: async () => new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+    progress: async () => {},
+    signal: AbortSignal.timeout(10000),
+  });
+  const content = vi.mocked(generateText).mock.calls[0][0].messages?.[0].content;
+  const texts = (Array.isArray(content) ? content : []).flatMap((part) =>
+    part.type === "text" ? [part.text] : [],
+  );
+  // 2·atan(36 / 52) ≈ 69°.
+  expect(texts[0]).toContain("Lens hint from EXIF: 26 mm (35 mm equivalent), about 69°");
+  expect(texts[1]).toBe("Photo 2 of the same room.");
+});

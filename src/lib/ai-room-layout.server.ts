@@ -40,7 +40,8 @@ export async function runAiRoomLayout({
     signal.throwIfAborted();
     const bytes = await loadPhoto(photo.key);
     if (!bytes) throw new Error("A room photo is missing. Upload it again before building.");
-    const focal = focalLength35mm(bytes);
+    // Uploads are re-encoded without EXIF, so prefer the focal length captured at upload.
+    const focal = photo.focal35 ?? focalLength35mm(bytes);
     content.push(
       {
         type: "text",

@@ -1,3 +1,4 @@
+import { focalLength35mm } from "../lib/exif";
 import { applyWatchedJob } from "../lib/watched-job";
 import { generationOptions, sessionOptions } from "../lib/studio-queries";
 import { findProblems, useLiveQuery } from "@tanstack/react-db";
@@ -143,8 +144,14 @@ export function useStudio(roomId: string) {
     const uploads = Array.from(files);
     await run(async () => {
       for (const file of uploads) {
+        // Compression re-encodes through a canvas and drops EXIF; read the lens first.
+        const focal =
+          kind === "room" && file.type === "image/jpeg"
+            ? focalLength35mm(new Uint8Array(await file.slice(0, 256_000).arrayBuffer()))
+            : undefined;
         const compressed = await compress(file);
         const data = new FormData();
+        if (focal) data.set("focal35", String(focal));
         data.set("roomId", id);
         data.set("file", compressed);
         data.set("kind", kind);

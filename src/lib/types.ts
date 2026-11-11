@@ -9,6 +9,8 @@ export type Asset = {
   notes?: string;
   dimensions?: string;
   availableSizes?: string[];
+  /** 35 mm-equivalent focal length read from the original photo's EXIF before compression. */
+  focal35?: number;
 };
 export type Design = {
   id: string;
@@ -17,8 +19,10 @@ export type Design = {
   createdAt: string;
   baseId: string;
   plan?: string;
-  /** The full instruction text sent to the image model, for debugging and evaluation. */
-  fullPrompt?: string;
+  /** Blob holding the full instruction text sent to the image model (kept out of rooms.json). */
+  promptKey?: string;
+  /** Small WebP preview for filmstrips; the PNG at `key` stays the full-resolution original. */
+  previewKey?: string;
   mode?: string;
   starred?: boolean;
   inferred?: boolean;
